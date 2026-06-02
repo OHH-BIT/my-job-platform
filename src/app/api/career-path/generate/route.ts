@@ -1,0 +1,508 @@
+export const dynamic = 'force-static';
+
+/**
+ * 动态成长路径规划 - 生成API
+ * 
+ * 功能：
+ * 1. 接收用户画像与目标岗位
+ * 2. 调用AI进行差距分析（Gap Analysis）
+ * 3. 生成时间轴规划（Timeline Nodes + Task Cards）
+ * 4. 返回结构化的成长路径数据
+ */
+
+import { UserProfileSnapshot, GapAnalysisResult, TimelineNode, TaskCard, TaskPriority } from '@/types/career-path';
+import { JobPosition } from '@/lib/job-matching';
+
+// ============================================
+// 类型定义
+// ============================================
+
+interface GenerateRequest {
+  userId: string;
+  targetJobId: string;
+  userProfileSnapshot: UserProfileSnapshot;
+  forceRegenerate?: boolean;
+}
+
+// ============================================
+// AI Prompt构建器
+// ============================================
+
+/**
+ * 构建AI Prompt（差距分析 + 时间轴生成）
+ */
+function buildGapAnalysisPrompt(
+  userProfile: UserProfileSnapshot,
+  targetJob: JobPosition,
+  currentTime: string,
+  currentSemester: string
+): string {
+  return `你是一位资深的大学生职业规划顾问和AI算法专家。你的任务是分析用户当前画像与目标岗位的差距，并生成一份分阶段、可执行的大学成长地图。
+
+## 输入数据
+
+### 用户画像（User Profile）
+- **年级**：<span style="color: red">'${userProfile.grade}'</span>
+- **专业**：<span style="color: red">'${userProfile.major}'</span>
+- **期望岗位**：<span style="color: red">'${userProfile.expectedPosition}'</span>
+- **已掌握技能**：<span style="color: red">'${userProfile.skills.join(', ')}'</span>
+- **项目经历**：
+${userProfile.projects.map(p => `  - ${p.name}（${p.role}，${p.duration}）：使用${p.technologies.join('/')}，${p.description}`).join('\n')}
+- **实习经历**：
+${userProfile.internships.length > 0 ? userProfile.internships.map(i => `  - ${i.company}（${i.position}，${i.duration}）：${i.description}`).join('\n') : '  - 无实习经历'}
+- **能力维度得分**（0-100）：
+  - 专业技能：${userProfile.dimensionScores.professional}
+  - 沟通协作：${userProfile.dimensionScores.communication}
+  - 领导力：${userProfile.dimensionScores.leadership}
+  - 创新思维：${userProfile.dimensionScores.innovation}
+  - 抗压能力：${userProfile.dimensionScores.resilience}
+
+### 目标岗位（Target Job）
+- **岗位名称**：<span style="color: red">'${targetJob.title}'</span>
+- **部门**：<span style="color: red">'${targetJob.department}'</span>
+- **岗位描述**：<span style="color: red">'${targetJob.description}'</span>
+- **技能要求**：<span style="color: red">'${targetJob.requirements.skills.join(', ')}'</span>
+- **经验要求**：<span style="color: red">'${targetJob.requirements.experience}'</span>
+- **学历要求**：<span style="color: red">'${targetJob.requirements.education}'</span>
+- **软性素质要求**（0-100）：
+  - 沟通能力：${targetJob.softRequirements?.communication || 70}
+  - 抗压能力：${targetJob.softRequirements?.resilience || 70}
+  - 领导力：${targetJob.softRequirements?.leadership || 60}
+  - 创新思维：${targetJob.softRequirements?.innovation || 70}
+
+### 当前时间信息
+- **当前时间**：<span style="color: red">'${currentTime}'</span>
+- **当前学期**：<span style="color: red">'${currentSemester}'</span>
+
+---
+
+## 你的任务
+
+### 第一步：差距分析（Gap Analysis）
+
+对比用户画像（A）与目标岗位（B），识别具体差距：
+
+1. **技能差距**：目标岗位要求的技能，用户是否掌握？掌握到什么程度？
+   - 示例："目标岗位要求熟练掌握Python数据分析，但用户画像中仅提及Excel"
+   
+2. **经历差距**：目标岗位要求的经验（如大厂实习、项目经历），用户是否具备？
+   - 示例："目标岗位要求有大厂实习经历，用户目前为空白"
+   
+3. **能力差距**：目标岗位要求的软性素质（沟通、领导力等），用户得分是否达标？
+   - 示例："目标岗位要求沟通能力80分，用户当前70分，差距10分"
+
+输出格式（JSON）：
+\`\`\`json
+{
+  "overallGapScore": 65,  // 总体差距得分（0-100，100表示完全匹配）
+  "dimensionGaps": [
+    {
+      "dimension": "professional",
+      "currentScore": 60,
+      "targetScore": 85,
+      "gap": 25,
+      "suggestions": ["学习Python数据分析", "参加Kaggle竞赛"]
+    }
+  ],
+  "skillGaps": [
+    {
+      "skillName": "Python",
+      "currentLevel": "入门",
+      "targetLevel": "熟练",
+      "importance": "must",
+      "learningPath": "学习《Python编程：从入门到实践》→ 完成3个项目 → 参加Kaggle入门赛"
+    }
+  ],
+  "experienceGaps": [
+    {
+      "experienceType": "大厂实习",
+      "currentCount": 0,
+      "targetCount": 1,
+      "description": "目标岗位要求至少1段大厂实习经历",
+      "howToFill": "大三暑期开始投递实习，优先投递腾讯/字节/阿里的日常实习岗位"
+    }
+  ]
+}
+\`\`\`
+
+### 第二步：时间轴规划生成（Timeline Generation）
+
+基于差距分析结果，结合用户当前学期，按时间顺序向后推演，生成成长地图。
+
+**时间节点规则**：
+1. 从"当前学期"开始，向后推演至"大四秋招"（或"研三秋招"）
+2. 每个学期/暑假/寒假作为一个时间节点
+3. 每个时间节点下挂载2-5个任务卡片
+
+**任务卡片规则**：
+- **行动标题**：简明扼要（如"参加互联网+大赛"、"学习SQL并考取证书"）
+- **关联差距**：明确告诉用户为什么要做这件事（如"弥补项目经历空白，提升简历竞争力"）
+- **优先级**：P0（必须完成/红色）、P1（建议完成/橙色）、P2（可选完成/蓝色）
+- **直达链接**：提供一键跳转（如"/chat?q=SQL教程"、"/intern-jobs"）
+
+输出格式（JSON）：
+\`\`\`json
+{
+  "timeline": [
+    {
+      "id": "node_1",
+      "title": "大二下（当前）",
+      "date": "2024-03",
+      "semester": "大二下",
+      "isCurrent": true,
+      "isCompleted": false,
+      "tasks": [
+        {
+          "id": "task_1_1",
+          "title": "学习Python数据分析",
+          "description": "完成《Python数据分析》课程，掌握Pandas、NumPy库",
+          "relatedGap": "弥补技能差距：目标岗位要求Python熟练，当前仅入门",
+          "priority": "P0",
+          "status": "pending",
+          "estimatedTime": "6周",
+          "actionLink": {
+            "label": "去学习",
+            "href": "/chat?q=Python数据分析教程",
+            "module": "chat"
+          }
+        }
+      ]
+    }
+  ],
+  "summary": "根据你的画像分析，你与目标岗位（后端开发工程师）的主要差距在于：1）Python技能不足；2）缺乏大厂实习经历；3）项目经历较少。建议从大二下开始，优先学习Python和参与项目竞赛..."
+}
+\`\`\`
+
+---
+
+## 输出要求
+
+1. **严格遵循JSON格式**，不要添加任何解释性文字
+2. **任务必须具体可执行**，不能笼统（如"提升能力"→应说"学习XX课程并完成3个项目"）
+3. **优先级必须合理**，P0任务应该是"不做就会导致求职失败"的关键任务
+4. **时间节点必须连续**，从当前学期到大四秋招/春招
+5. **直达链接必须有效**，指向站内模块（/chat、/intern-jobs、/resume-checker等）
+
+## 开始分析
+
+请基于以上输入数据，完成差距分析和时间轴规划生成。输出完整的JSON结果。`;
+}
+
+// ============================================
+// OpenAI API调用
+// ============================================
+
+/**
+ * 调用AI大模型（使用统一环境变量配置）
+ */
+async function callOpenAI(prompt: string): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const baseURL = process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || 'https://api.openai.com/v1';
+  const model = process.env.AI_MODEL || process.env.OPENAI_MODEL || 'deepseek-chat';
+  const apiUrl = `${baseURL}/chat/completions`;
+  
+  if (!apiKey) {
+    console.warn('[Career Path] 未配置 OPENAI_API_KEY，使用演示模式');
+    return getDemoGapAnalysisResult();
+  }
+  
+  console.log(`[Career Path] 调用AI服务 (model=${model}, baseURL=${baseURL})...`);
+  
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: '你是一位资深的大学生职业规划顾问。你必须输出严格的JSON格式，不要添加任何解释性文字。' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 4000,
+        response_format: { type: 'json_object' }
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Career Path] API返回错误: ${response.status} ${errorText}`);
+      throw new Error(`AI API 调用失败 (${response.status}): ${errorText.slice(0, 500)}`);
+    }
+    
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (error: any) {
+    console.error('[Career Path] AI调用异常:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * 演示模式：返回模拟差距分析结果
+ */
+function getDemoGapAnalysisResult(): string {
+  // 返回预置的模拟数据（简化版）
+  return JSON.stringify({
+    overallGapScore: 65,
+    dimensionGaps: [
+      {
+        dimension: 'professional',
+        currentScore: 60,
+        targetScore: 85,
+        gap: 25,
+        suggestions: ['学习Python数据分析', '参加Kaggle竞赛', '完成3个项目']
+      },
+      {
+        dimension: 'communication',
+        currentScore: 70,
+        targetScore: 80,
+        gap: 10,
+        suggestions: ['参加社团活动', '做项目汇报练习']
+      }
+    ],
+    skillGaps: [
+      {
+        skillName: 'Python',
+        currentLevel: '入门',
+        targetLevel: '熟练',
+        importance: 'must',
+        learningPath: '学习《Python编程：从入门到实践》→ 完成3个项目 → 参加Kaggle入门赛'
+      },
+      {
+        skillName: 'SQL',
+        currentLevel: '未掌握',
+        targetLevel: '熟练',
+        importance: 'must',
+        learningPath: '学习《SQL必知必会》→ 完成LeetCode SQL 50题 → 做一个数据库项目'
+      }
+    ],
+    experienceGaps: [
+      {
+        experienceType: '大厂实习',
+        currentCount: 0,
+        targetCount: 1,
+        description: '目标岗位要求至少1段大厂实习经历',
+        howToFill: '大三暑期开始投递实习，优先投递腾讯/字节/阿里的日常实习岗位'
+      },
+      {
+        experienceType: '项目经历',
+        currentCount: 1,
+        targetCount: 3,
+        description: '目标岗位要求有2-3个高质量项目经历',
+        howToFill: '参加竞赛（互联网+、挑战杯）或自己做Side Project'
+      }
+    ],
+    timeline: [
+      {
+        id: 'node_1',
+        title: '大二下（当前）',
+        date: '2024-03',
+        semester: '大二下',
+        isCurrent: true,
+        isCompleted: false,
+        tasks: [
+          {
+            id: 'task_1_1',
+            title: '学习Python数据分析',
+            description: '完成《Python数据分析》课程，掌握Pandas、NumPy库，完成3个实战项目',
+            relatedGap: '弥补技能差距：目标岗位要求Python熟练，当前仅入门',
+            priority: 'P0',
+            status: 'pending',
+            estimatedTime: '6周',
+            actionLink: {
+              label: '去学习',
+              href: '/chat?q=Python数据分析教程',
+              module: 'chat'
+            }
+          },
+          {
+            id: 'task_1_2',
+            title: '参加互联网+大赛',
+            description: '组队参加互联网+大赛，做一个完整的项目，弥补项目经历空白',
+            relatedGap: '弥补经历差距：目标岗位要求2-3个项目，当前仅1个',
+            priority: 'P0',
+            status: 'pending',
+            estimatedTime: '3个月',
+            actionLink: {
+              label: '了解更多',
+              href: '/chat?q=互联网+大赛如何准备',
+              module: 'chat'
+            }
+          }
+        ]
+      },
+      {
+        id: 'node_2',
+        title: '大二暑假',
+        date: '2024-07',
+        semester: '大二暑假',
+        isCurrent: false,
+        isCompleted: false,
+        tasks: [
+          {
+            id: 'task_2_1',
+            title: '学习SQL并做项目',
+            description: '学习SQL基础，完成LeetCode SQL 50题，做一个数据库项目',
+            relatedGap: '弥补技能差距：目标岗位要求SQL熟练，当前未掌握',
+            priority: 'P0',
+            status: 'pending',
+            estimatedTime: '4周',
+            actionLink: {
+              label: '去学习',
+              href: '/chat?q=SQL入门教程',
+              module: 'chat'
+            }
+          },
+          {
+            id: 'task_2_2',
+            title: '准备简历并投递实习',
+            description: '撰写简历，投递大厂日常实习岗位（腾讯/字节/阿里）',
+            relatedGap: '弥补经历差距：目标岗位要求大厂实习，需提前准备',
+            priority: 'P1',
+            status: 'pending',
+            estimatedTime: '2周',
+            actionLink: {
+              label: '去找实习',
+              href: '/intern-jobs',
+              module: 'intern-jobs'
+            }
+          }
+        ]
+      },
+      {
+        id: 'node_3',
+        title: '大三上',
+        date: '2024-09',
+        semester: '大三上',
+        isCurrent: false,
+        isCompleted: false,
+        tasks: [
+          {
+            id: 'task_3_1',
+            title: '开始大厂日常实习',
+            description: '入职大厂实习（腾讯/字节/阿里），积累实战经验',
+            relatedGap: '弥补经历差距：目标岗位要求大厂实习经历',
+            priority: 'P0',
+            status: 'pending',
+            estimatedTime: '6个月',
+            actionLink: {
+              label: '去找实习',
+              href: '/intern-jobs',
+              module: 'intern-jobs'
+            }
+          },
+          {
+            id: 'task_3_2',
+            title: '刷算法题（LeetCode 300+）',
+            description: '每天刷2-3道LeetCode题，准备秋招笔试',
+            relatedGap: '弥补技能差距：目标岗位要求算法能力强',
+            priority: 'P0',
+            status: 'pending',
+            estimatedTime: '持续进行',
+            actionLink: {
+              label: '去刷题',
+              href: '/chat?q=LeetCode刷题计划',
+              module: 'chat'
+            }
+          }
+        ]
+      }
+    ],
+    summary: '根据你的画像分析，你与目标岗位（后端开发工程师）的主要差距在于：1）Python和SQL技能不足；2）缺乏大厂实习经历；3）项目经历较少（仅1个，需2-3个）。建议从大二下开始，优先学习Python和SQL，参加互联网+大赛弥补项目空白；大二暑假学习SQL并准备简历；大三上开始大厂日常实习并刷算法题。整体时间线规划至大四秋招，预计总体差距得分可从65分提升至85分。'
+  });
+}
+
+// ============================================
+// POST请求处理
+// ============================================
+
+export async function POST(req: Request) {
+  try {
+    const body: GenerateRequest = await req.json();
+    const { userId, targetJobId, userProfileSnapshot, forceRegenerate } = body;
+    
+    if (!userId || !targetJobId || !userProfileSnapshot) {
+      return Response.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+    
+    // 1. 获取目标岗位数据（从job-matching.ts导入）
+    // TODO: 在实际项目中，应该从数据库或API获取岗位数据
+    const { JOB_POSITIONS } = await import('@/lib/job-matching');
+    const targetJob = JOB_POSITIONS.find(job => job.id === targetJobId);
+    
+    if (!targetJob) {
+      return Response.json({ error: 'Target job not found' }, { status: 404 });
+    }
+    
+    // 2. 构建AI Prompt
+    const currentTime = new Date().toISOString().slice(0, 7);  // "2024-03"
+    const currentSemester = calculateCurrentSemester(userProfileSnapshot.grade);
+    const prompt = buildGapAnalysisPrompt(userProfileSnapshot, targetJob, currentTime, currentSemester);
+    
+    // 3. 调用AI生成差距分析结果
+    const aiResponse = await callOpenAI(prompt);
+    
+    // 4. 解析AI响应（JSON格式）
+    let gapAnalysisResult: any;
+    try {
+      gapAnalysisResult = JSON.parse(aiResponse);
+    } catch (parseError) {
+      console.error('Failed to parse AI response as JSON:', parseError);
+      return Response.json({ error: 'Invalid AI response format' }, { status: 500 });
+    }
+    
+    // 5. 构建完整的GapAnalysisResult对象
+    const result: GapAnalysisResult = {
+      userId: userId,
+      targetJobId: targetJobId,
+      targetJobTitle: targetJob.title,
+      analyzedAt: new Date().toISOString(),
+      overallGapScore: gapAnalysisResult.overallGapScore || 65,
+      dimensionGaps: gapAnalysisResult.dimensionGaps || [],
+      skillGaps: gapAnalysisResult.skillGaps || [],
+      experienceGaps: gapAnalysisResult.experienceGaps || [],
+      timeline: gapAnalysisResult.timeline || [],
+      summary: gapAnalysisResult.summary || '分析完成'
+    };
+    
+    // 6. 保存到数据库（TODO: 实际项目中应该保存到数据库）
+    // await saveGapAnalysisResult(result);
+    
+    // 7. 返回结果
+    return Response.json({
+      success: true,
+      data: result
+    });
+    
+  } catch (error) {
+    console.error('Generate career path error:', error);
+    return Response.json(
+      { success: false, error: 'Internal server error', message: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * 计算当前学期（简化版）
+ */
+function calculateCurrentSemester(grade: string): string {
+  const month = new Date().getMonth() + 1;  // 1-12
+  const isSpring = month >= 3 && month <= 8;  // 3-8月为下学期
+  
+  if (grade === '大一') {
+    return isSpring ? '大一下' : '大一上';
+  } else if (grade === '大二') {
+    return isSpring ? '大二下' : '大二上';
+  } else if (grade === '大三') {
+    return isSpring ? '大三下' : '大三上';
+  } else if (grade === '大四') {
+    return isSpring ? '大四下' : '大四上';
+  } else {
+    return '未知学期';
+  }
+}
