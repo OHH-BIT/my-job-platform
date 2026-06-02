@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Next.js Edge Middleware — 全站路由守卫
+ * Next.js Edge Proxy — 全站路由守卫
  * 
  * 功能：
  * 1. 受保护页面（/job-tracking、/profile 等）在 Token 不存在时重定向到登录页
@@ -33,7 +33,7 @@ const PUBLIC_PATHS = [
   '/api/mentor-sharing',
 ];
 
-// 主匹配器配置：只在这些路径上运行 middleware
+// 主匹配器配置：只在这些路径上运行 proxy
 export const config = {
   matcher: [
     // 匹配所有页面路由（排除 _next/static、_next/image、favicon 等）
@@ -41,7 +41,7 @@ export const config = {
   ],
 };
 
-export default function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // === API 请求不拦截（鉴权由 API 路由内部处理） ===
