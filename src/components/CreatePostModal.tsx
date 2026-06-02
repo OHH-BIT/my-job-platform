@@ -4,6 +4,7 @@
 // 功能：包含标题、内容、图片上传、标签输入，支持发布新帖子
 
 import { useState, useRef } from "react";
+import { API_BASE_URL } from "@/lib/api-client";
 import { X, ImagePlus, Tag, Send, Check } from "lucide-react";
 
 // ============================================
@@ -107,7 +108,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
         formData.append("images", image);
       });
 
-      const response = await fetch("/api/mentor-sharing/create", {
+      const response = await fetch(`${API_BASE_URL}/api/mentor-sharing/create`, {
         method: "POST",
         body: formData,
       });

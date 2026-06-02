@@ -11,7 +11,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { setAuthErrorHandler, hasValidTokenFormat, clearTokens, setTokens, getUserIdFromToken, getAccessToken, getRefreshToken } from '@/lib/api-client';
+import { setAuthErrorHandler, hasValidTokenFormat, clearTokens, setTokens, getUserIdFromToken, getAccessToken, getRefreshToken, API_BASE_URL } from '@/lib/api-client';
 
 // ============================================
 // 类型定义
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const refreshToken = getRefreshToken();
       if (refreshToken) {
         try {
-          const response = await fetch('/api/auth/refresh', {
+          const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refreshToken }),

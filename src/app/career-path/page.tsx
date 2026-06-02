@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE_URL } from "@/lib/api-client";
 import { motion, AnimatePresence } from "framer-motion";
 import { TimelineNode, TaskCard, TaskPriority, TaskStatus, GapAnalysisResult } from "@/types/career-path";
 import { PRIORITY_CONFIG, STATUS_CONFIG } from "@/types/career-path";
@@ -33,7 +34,7 @@ export default function CareerPathPage() {
       const targetJobId = "backend";  // 模拟目标岗位ID（后端开发工程师）
 
       // 调用后端API
-      const response = await fetch("/api/career-path/generate", {
+      const response = await fetch(`${API_BASE_URL}/api/career-path/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

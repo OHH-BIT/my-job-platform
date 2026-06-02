@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { API_BASE_URL } from "@/lib/api-client";
 import { motion, AnimatePresence } from "framer-motion";
 import JobMatchReport from "@/components/JobMatchReport";
 import AbilityTest from "@/components/AbilityTest";
@@ -66,7 +67,7 @@ export default function SmartProfilePage() {
   // AI分析（融合简历+测试双源数据）
   const handleAnalyze = useCallback(async (testResult: any) => {
     try {
-      const response = await fetch("/api/ai/analyze", {
+      const response = await fetch(`${API_BASE_URL}/api/ai/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

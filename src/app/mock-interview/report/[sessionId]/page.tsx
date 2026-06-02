@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE_URL } from "@/lib/api-client";
 import { useParams, useRouter } from "next/navigation";
 import { InterviewReport, InterviewScore } from "@/types/mock-interview";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend } from "recharts";
@@ -24,7 +25,7 @@ export default function MockInterviewReportPage() {
 
     const loadReport = async () => {
       try {
-        const response = await fetch(`/api/mock-interview/report/${sessionId}`);
+        const response = await fetch(`${API_BASE_URL}/api/mock-interview/report/${sessionId}`);
         if (!response.ok) throw new Error("加载报告失败");
 
         const data = await response.json();

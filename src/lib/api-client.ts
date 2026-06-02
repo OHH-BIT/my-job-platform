@@ -9,6 +9,14 @@
  */
 
 // ============================================
+// API 基础路径（部署到 EdgeOne 时指向真实后端）
+// ============================================
+
+// TODO: 部署时请将此地址替换为你的真实后端 API 域名
+// 本地开发时使用 Next.js API Routes（空字符串即可）
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+// ============================================
 // 类型定义
 // ============================================
 
@@ -122,7 +130,7 @@ async function tryRefreshToken(): Promise<boolean> {
   if (!refreshToken) return false;
 
   try {
-    const response = await fetch('/api/auth/refresh', {
+    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
@@ -230,7 +238,8 @@ export async function apiClient<T = any>(
   }
 
   try {
-    const response = await fetch(url, fetchOptions);
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+    const response = await fetch(fullUrl, fetchOptions);
 
     // 处理 401：尝试刷新 Token 后重试
     if (response.status === 401 && !skipAuth) {
@@ -241,7 +250,7 @@ export async function apiClient<T = any>(
         if (newToken) {
           requestHeaders['Authorization'] = `Bearer ${newToken}`;
         }
-        const retryResponse = await fetch(url, { ...fetchOptions, headers: requestHeaders });
+        const retryResponse = await fetch(fullUrl, { ...fetchOptions, headers: requestHeaders });
 
         if (retryResponse.ok) {
           return await retryResponse.json();

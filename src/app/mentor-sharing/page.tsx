@@ -9,6 +9,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { API_BASE_URL } from "@/lib/api-client";
 import {
   Heart,
   MessageCircle,
@@ -607,7 +608,7 @@ export default function MentorSharingPage() {
       params.append("page", page.toString());
       params.append("pageSize", pageSize.toString());
 
-      const response = await fetch(`/api/mentor-sharing/list?${params.toString()}`);
+      const response = await fetch(`${API_BASE_URL}/api/mentor-sharing/list?${params.toString()}`);
       const result = await response.json();
 
       if (result.success) {

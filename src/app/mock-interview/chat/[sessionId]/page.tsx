@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { API_BASE_URL } from "@/lib/api-client";
 import { useParams, useRouter } from "next/navigation";
 
 // ============================================
@@ -68,7 +69,7 @@ export default function MockInterviewChatPage() {
 
         // 从 API 加载会话（通过 start API 返回的 firstQuestion 判断）
         // 题目已预生成并存在 session 中
-        const response = await fetch("/api/mock-interview/session", {
+        const response = await fetch(`${API_BASE_URL}/api/mock-interview/session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId }),
@@ -137,7 +138,7 @@ export default function MockInterviewChatPage() {
 
     try {
       // 调用回答 API（SSE 流式）
-      const response = await fetch("/api/mock-interview/answer", {
+      const response = await fetch(`${API_BASE_URL}/api/mock-interview/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -225,7 +226,7 @@ export default function MockInterviewChatPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/mock-interview/complete/${sessionId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/mock-interview/complete/${sessionId}`, {
         method: "POST",
       });
 

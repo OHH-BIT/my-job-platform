@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { API_BASE_URL } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 import { JOB_POSITIONS } from "@/lib/job-matching";
 
@@ -45,7 +46,7 @@ export default function MockInterviewConfigPage() {
       let generatedQuestions: Array<{ id: string; question: string; type: string }> = [];
       
       try {
-        const genResponse = await fetch("/api/ai-interview/generate-questions", {
+        const genResponse = await fetch(`${API_BASE_URL}/api/ai-interview/generate-questions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -68,7 +69,7 @@ export default function MockInterviewConfigPage() {
       }
 
       // === 调用启动面试 API（传入预生成题目） ===
-      const response = await fetch("/api/mock-interview/start", {
+      const response = await fetch(`${API_BASE_URL}/api/mock-interview/start`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

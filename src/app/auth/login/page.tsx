@@ -13,6 +13,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { API_BASE_URL } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 
 // ============================================
@@ -117,7 +118,7 @@ export default function LoginPage() {
 
     try {
       // 调用发送验证码API
-      const response = await fetch('/api/auth/email/send-verification-code', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/email/send-verification-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -175,7 +176,7 @@ export default function LoginPage() {
       }
 
       // 调用登录API
-      const response = await fetch('/api/auth/email/login', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/email/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -225,7 +226,7 @@ export default function LoginPage() {
     if (merge) {
       // 调用合并数据API
       try {
-        const response = await fetch('/api/auth/merge-data', {
+        const response = await fetch(`${API_BASE_URL}/api/auth/merge-data`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

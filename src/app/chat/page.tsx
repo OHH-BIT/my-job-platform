@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { API_BASE_URL } from "@/lib/api-client";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import { cleanAIResponse } from "@/lib/textCleaner";
@@ -113,7 +114,7 @@ export default function ChatPage() {
 
     try {
       // 调用后端API（集成OpenAI + RAG）
-      const response = await fetch("/api/chat", {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
