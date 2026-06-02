@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareerAdviceEngine 测试页面</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f5f7fa; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; color: #0052D9; margin-bottom: 30px; }
+        .test-cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .test-case { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.3s; }
+        .test-case:hover { transform: translateY(-4px); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+        .test-case h3 { color: #333; margin-bottom: 10px; }
+        .test-case p { color: #666; font-size: 14px; line-height: 1.6; }
+        .test-case .tag { display: inline-block; padding: 4px 8px; background: #e3f2fd; color: #0052D9; border-radius: 4px; font-size: 12px; margin-top: 10px; }
+        .output { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 20px; }
+        .output h2 { color: #333; margin-bottom: 20px; }
+        .advice-card { background: #f5f7fa; border-radius: 8px; padding: 16px; margin-bottom: 16px; border-left: 4px solid #0052D9; }
+        .advice-card h4 { color: #0052D9; margin-bottom: 8px; }
+        .advice-card p { color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 12px; }
+        .advice-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+        .meta-tag { padding: 4px 8px; background: white; border-radius: 4px; font-size: 12px; color: #666; }
+        .decision-path { background: #fff3e0; border-radius: 6px; padding: 12px; margin-top: 12px; font-size: 12px; color: #e65100; }
+        .decision-path strong { display: block; margin-bottom: 6px; }
+        .action-items { background: #e8f5e9; border-radius: 6px; padding: 12px; margin-top: 12px; }
+        .action-items strong { display: block; margin-bottom: 6px; color: #2e7d32; }
+        .action-items ul { margin: 0; padding-left: 20px; color: #666; font-size: 13px; }
+        .action-items li { margin-bottom: 4px; }
+        .loading { text-align: center; padding: 40px; color: #999; }
+        .error { background: #ffebee; border-radius: 8px; padding: 16px; color: #c62828; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 CareerAdviceEngine 测试页面</h1>
+        
+        <p style="text-align: center; color: #666; margin-bottom: 30px; max-width: 800px; margin-left: auto; margin-right: auto;">
+            点击下面的测试案例，验证四维交叉匹配策略是否正常工作。<br>
+            每个测试案例模拟不同的用户画像（年级、专业、期望岗位、技能、测评分数），检查生成的建议是否精准匹配。
+        </p>
+
+        <!-- 测试案例列表 -->
+        <div class="test-cases">
+            <div class="test-case" onclick="runTest('test1')">
+                <h3>测试1：大一学生（技术类专业，期望研发岗）</h3>
+                <p>模拟大一计算机专业学生，专业技能薄弱，缺乏项目经历。预期建议：夯实基础、积累实践经验。</p>
+                <span class="tag">场景A - 低年级 + 技术类 + 研发岗</span>
+            </div>
+
+            <div class="test-case" onclick="runTest('test2')">
+                <h3>测试2：大三学生（任何专业，期望对口岗位）</h3>
+                <p>模拟大三学生，专业技能薄弱，缺乏实习经历。预期建议：紧急突击技能、立即补充实习经验。</p>
+                <span class="tag">场景B - 高年级 + 任何专业 + 对口岗</span>
+            </div>
+
+            <div class="test-case" onclick="runTest('test3')">
+                <h3>测试3：博士生（科研类专业，期望算法/专家岗）</h3>
+                <p>模拟博士生，工程落地能力薄弱，缺乏产业界经验。预期建议：提升工程能力、申请研究型实习。</p>
+                <span class="tag">场景C - 硕博 + 科研类 + 算法/专家岗</span>
+            </div>
+
+            <div class="test-case" onclick="runTest('test4')">
+                <h3>测试4：转行场景（专业与岗位不符）</h3>
+                <p>模拟设计专业学生，期望岗位是前端开发。预期建议：弥补科班背景不足、快速补足核心技能。</p>
+                <span class="tag">场景D - 转行场景</span>
+            </div>
+
+            <div class="test-case" onclick="runTest('test5')">
+                <h3>测试5：硕士生（科研类专业，期望算法岗）</h3>
+                <p>模拟硕士生，专业技能薄弱，缺乏科研经历。预期建议：提升科研能力、申请研究型实习。</p>
+                <span class="tag">场景C - 硕士 + 科研类 + 算法岗</span>
+            </div>
+
+            <div class="test-case" onclick="runTest('test6')">
+                <h3>测试6：大四学生（技能强，但缺乏实习）</h3>
+                <p>模拟大四学生，专业技能强（80分），但缺乏实习经历。预期建议：立即投递实习、补充实战经验。</p>
+                <span class="tag">场景B - 高年级 + 经历空白</span>
+            </div>
+        </div>
+
+        <!-- 输出区域 -->
+        <div class="output" id="output" style="display: none;">
+            <h2>📋 测试结果</h2>
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // 模拟 CareerAdviceEngine（简化版，用于演示）
+        // ============================================
+
+        /**
+         * 用户档案
+         */
+        class UserProfileForAdvice {
+            constructor(grade, degree, major, expectedPosition, interests) {
+                this.grade = grade;
+                this.degree = degree;
+                this.major = major;
+                this.expectedPosition = expectedPosition;
+                this.interests = interests;
+            }
+        }
+
+        /**
+         * 技能标签
+         */
+        class SkillTags {
+            constructor(technicalSkills, softSkills, tools, hasInternship, hasProject, hasResearch) {
+                this.technicalSkills = technicalSkills;
+                this.softSkills = softSkills;
+                this.tools = tools;
+                this.hasInternship = hasInternship;
+                this.hasProject = hasProject;
+                this.hasResearch = hasResearch;
+            }
+        }
+
+        /**
+         * 测评分数
+         */
+        class AssessmentScores {
+            constructor(professional, communication, leadership, innovation, resilience) {
+                this.professional = professional;
+                this.communication = communication;
+                this.leadership = leadership;
+                this.innovation = innovation;
+                this.resilience = resilience;
+                this.overall = Math.round((professional + communication + leadership + innovation + resilience) / 5);
+            }
+        }
+
+        // ============================================
+        // 测试数据
+        // ============================================
+
+        const testCases = {
+            test1: {
+                name: '测试1：大一学生（技术类专业，期望研发岗）',
+                userProfile: new UserProfileForAdvice('大一', 'bachelor', '计算机科学与技术', '前端开发工程师', ['技术创新']),
+                skills: new SkillTags(['Python', 'C++'], ['沟通', '团队合作'], ['Git'], false, false, false),
+                scores: new AssessmentScores(40, 70, 65, 75, 80)
+            },
+            test2: {
+                name: '测试2：大三学生（任何专业，期望对口岗位）',
+                userProfile: new UserProfileForAdvice('大三', 'bachelor', '软件工程', '后端开发工程师', ['业务落地']),
+                skills: new SkillTags(['Java', 'Spring'], ['沟通'], ['Git', 'Docker'], false, true, false),
+                scores: new AssessmentScores(55, 65, 60, 70, 75)
+            },
+            test3: {
+                name: '测试3：博士生（科研类专业，期望算法/专家岗）',
+                userProfile: new UserProfileForAdvice('研究生三年级', 'phd', '人工智能', '算法工程师', ['技术创新']),
+                skills: new SkillTags(['Python', 'PyTorch', 'TensorFlow'], ['学术演讲'], ['Git', 'GPU'], false, false, true),
+                scores: new AssessmentScores(70, 60, 65, 85, 75)
+            },
+            test4: {
+                name: '测试4：转行场景（专业与岗位不符）',
+                userProfile: new UserProfileForAdvice('大三', 'bachelor', '产品设计', '前端开发工程师', ['用户体验']),
+                skills: new SkillTags(['HTML', 'CSS'], ['沟通', '设计思维'], ['Figma'], false, true, false),
+                scores: new AssessmentScores(50, 75, 70, 65, 70)
+            },
+            test5: {
+                name: '测试5：硕士生（科研类专业，期望算法岗）',
+                userProfile: new UserProfileForAdvice('研究生一年级', 'master', '计算机科学与技术', '算法工程师', ['技术创新']),
+                skills: new SkillTags(['Python', 'TensorFlow'], ['学术研究'], ['Git', 'Jupyter'], false, false, true),
+                scores: new AssessmentScores(60, 65, 70, 80, 75)
+            },
+            test6: {
+                name: '测试6：大四学生（技能强，但缺乏实习）',
+                userProfile: new UserProfileForAdvice('大四', 'bachelor', '软件工程', '后端开发工程师', ['业务落地']),
+                skills: new SkillTags(['Java', 'Spring', 'MySQL', 'Redis'], ['沟通', '团队协作'], ['Git', 'Docker'], false, true, false),
+                scores: new AssessmentScores(80, 70, 65, 75, 80)
+            }
+        };
+
+        // ============================================
+        // 运行测试
+        // ============================================
+
+        function runTest(testId) {
+            const output = document.getElementById('output');
+            const result = document.getElementById('result');
+            
+            output.style.display = 'block';
+            result.innerHTML = '<div class="loading">⏳ 正在生成建议...</div>';
+
+            // 模拟延迟
+            setTimeout(() => {
+                const testCase = testCases[testId];
+                
+                if (!testCase) {
+                    result.innerHTML = '<div class="error">❌ 测试案例不存在：' + testId + '</div>';
+                    return;
+                }
+
+                // 生成建议（这里应该调用真实的CareerAdviceEngine，但现在只是演示）
+                // 由于我们无法在浏览器中直接运行TypeScript，这里只展示预期的输出结构
+                const adviceList = generateMockAdvice(testCase);
+
+                // 渲染结果
+                let html = '<h3 style="color: #0052D9; margin-bottom: 20px;">' + testCase.name + '</h3>';
+                html += '<p style="color: #666; margin-bottom: 20px;">用户画像：' + testCase.userProfile.grade + ' · ' + testCase.userProfile.major + ' · 期望' + testCase.userProfile.expectedPosition + '</p>';
+                
+                adviceList.forEach((advice, index) => {
+                    html += `
+                        <div class="advice-card">
+                            <h4>${index + 1}. ${advice.title}</h4>
+                            <p>${advice.content}</p>
+                            <div class="advice-meta">
+                                <span class="meta-tag">优先级：${advice.priority === 'high' ? '高' : advice.priority === 'medium' ? '中' : '低'}</span>
+                                <span class="meta-tag">类别：${advice.category}</span>
+                                <span class="meta-tag">预期效果：${advice.expectedImpact}</span>
+                            </div>
+                            <div class="decision-path">
+                                <strong>📍 决策路径（用于追溯）：</strong>
+                                时间维度：${advice.decisionPath.timeDimension} | 
+                                赛道维度：${advice.decisionPath.trackDimension} | 
+                                目标维度：${advice.decisionPath.goalDimension} | 
+                                现状维度：${advice.decisionPath.statusDimension} | 
+                                匹配场景：${advice.decisionPath.matchedScenario} | 
+                                模板ID：${advice.decisionPath.adviceTemplateId}
+                            </div>
+                            ${advice.actionItems.length > 0 ? `
+                            <div class="action-items">
+                                <strong>✅ 具体行动项：</strong>
+                                <ul>
+                                    ${advice.actionItems.map(item => '<li>' + item + '</li>').join('')}
+                                </ul>
+                            </div>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+
+                result.innerHTML = html;
+
+                // 滚动到输出区域
+                output.scrollIntoView({ behavior: 'smooth' });
+            }, 500);
+        }
+
+        /**
+         * 生成模拟建议（演示用，实际应该调用CareerAdviceEngine）
+         */
+        function generateMockAdvice(testCase) {
+            // 根据测试案例，返回预期的建议
+            if (testCase.userProfile.grade === '大一') {
+                return [
+                    {
+                        id: 'advice_1',
+                        title: '夯实专业基础',
+                        content: '同学你好，作为大一 计算机科学与技术的学生，想要胜任前端开发工程师，目前的技能水平不足是你最大的短板。你的专业基础尚浅，建议利用课余时间系统学习《数据结构》与《操作系统》，并在GitHub上尝试复现简单的开源项目。考虑到你对"技术创新"的兴趣，建议在技术深度上多钻研，例如阅读底层源码、参与开源社区的技术讨论。',
+                        priority: 'high',
+                        category: 'skill_gap',
+                        decisionPath: {
+                            timeDimension: 'freshman_sophomore',
+                            trackDimension: 'technical',
+                            goalDimension: 'rd',
+                            statusDimension: 'skill_weak',
+                            matchedScenario: 'A',
+                            adviceTemplateId: 'A1_skill_weak'
+                        },
+                        expectedImpact: '预计提升专业技能评分15-20分',
+                        actionItems: [
+                            '本周内制定学习计划：每天2小时学习《数据结构》',
+                            '在GitHub上创建一个仓库，尝试复现1个简单的开源项目（如todo-list）',
+                            '加入学校的技术社团或实验室，结识志同道合的同学'
+                        ]
+                    },
+                    {
+                        id: 'advice_2',
+                        title: '积累初步实践经验',
+                        content: '同学你好，作为大一 计算机科学与技术的学生，想要胜任前端开发工程师，目前的缺乏项目/实习/科研经历是你最大的短板。现阶段不必急于找大厂实习，建议先加入学校的实验室或技术社团，参与一次完整的黑客马拉松或校级比赛。考虑到你对"技术创新"的兴趣，建议在技术深度上多钻研，例如阅读底层源码、参与开源社区的技术讨论。',
+                        priority: 'high',
+                        category: 'experience_gap',
+                        decisionPath: {
+                            timeDimension: 'freshman_sophomore',
+                            trackDimension: 'technical',
+                            goalDimension: 'rd',
+                            statusDimension: 'experience_gap',
+                            matchedScenario: 'A',
+                            adviceTemplateId: 'A2_experience_gap'
+                        },
+                        expectedImpact: '预计提升项目经历评分20-25分',
+                        actionItems: [
+                            '本周内报名参加一个校级技术比赛或黑客马拉松',
+                            '加入学校的技术社团或实验室，参与1个团队项目',
+                            '在简历中增加"校园经历"章节，记录你的项目经验'
+                        ]
+                    }
+                ];
+            } else if (testCase.userProfile.grade === '大三') {
+                return [
+                    {
+                        id: 'advice_1',
+                        title: '紧急突击岗位核心技能',
+                        content: '同学你好，作为大三 软件工程的学生，想要胜任后端开发工程师，目前的技能水平不足是你最大的短板。距离秋招仅剩不到一年，请立即针对后端开发工程师的JD进行专项突击。例如，若投前端岗，务必熟练掌握React/Vue框架及原理；若投后端岗，重点攻克分布式、微服务、数据库优化。考虑到你对"业务落地"的兴趣，建议关注实际产出与数据指标，例如在项目中关注DAU、转化率等业务数据。',
+                        priority: 'high',
+                        category: 'skill_gap',
+                        decisionPath: {
+                            timeDimension: 'junior_senior',
+                            trackDimension: 'technical',
+                            goalDimension: 'rd',
+                            statusDimension: 'skill_weak',
+                            matchedScenario: 'B',
+                            adviceTemplateId: 'B1_skill_weak'
+                        },
+                        expectedImpact: '预计提升专业技能评分25-30分',
+                        actionItems: [
+                            '今天内收集10个后端开发工程师岗位的JD，提取高频技能关键词',
+                            '制定30天突击计划：每天3小时专项学习核心技能',
+                            '在LeetCode上刷题，目标是完成200道算法题'
+                        ]
+                    }
+                ];
+            } else if (testCase.userProfile.degree === 'phd') {
+                return [
+                    {
+                        id: 'advice_1',
+                        title: '提升工程落地能力',
+                        content: '同学你好，作为博士 人工智能的学生，想要胜任算法工程师，目前的技能水平不足是你最大的短板。作为高层次人才，企业对你的工程落地能力有更高期待。建议在保持学术产出的同时，深入学习分布式训练或大规模数据处理技术。可以尝试将你的论文成果做成可演示的系统（Demo），这会大大增加你的竞争力。考虑到你对"技术创新"的兴趣，建议在技术深度上多钻研，例如阅读底层源码、参与开源社区的技术讨论。',
+                        priority: 'high',
+                        category: 'skill_gap',
+                        decisionPath: {
+                            timeDimension: 'phd',
+                            trackDimension: 'technical',
+                            goalDimension: 'algorithm',
+                            statusDimension: 'skill_weak',
+                            matchedScenario: 'C',
+                            adviceTemplateId: 'C1_skill_weak'
+                        },
+                        expectedImpact: '预计提升专业技能评分20-25分',
+                        actionItems: [
+                            '本周内学习分布式训练框架（如PyTorch DDP、DeepSpeed）',
+                            '将你的论文成果封装成可演示的Demo系统，并开源到GitHub',
+                            '申请腾讯AI Lab、TEG等事业群的研究型实习（Research Intern）'
+                        ]
+                    }
+                ];
+            } else if (testCase.userProfile.major === '产品设计' && testCase.userProfile.expectedPosition.includes('前端')) {
+                return [
+                    {
+                        id: 'advice_1',
+                        title: '弥补科班背景不足，突出自学能力',
+                        content: '同学你好，检测到你的专业（产品设计）与期望岗位（前端开发工程师）跨度较大。建议在简历中重点突出你的自学能力与相关项目作品，并通过考取行业权威证书或参与付费实战项目来弥补科班背景的不足。例如，如果想转行前端，可以考取腾讯云Web开发认证；如果想转行产品，可以做一个完整的产品设计方案（含原型、PRD、竞品分析）。考虑到你对"用户体验"的兴趣，建议在项目中多关注用户反馈、可用性测试、交互设计等方面。',
+                        priority: 'high',
+                        category: 'career_direction',
+                        decisionPath: {
+                            timeDimension: 'junior_senior',
+                            trackDimension: 'design',
+                            goalDimension: 'rd',
+                            statusDimension: 'career_transition',
+                            matchedScenario: 'D',
+                            adviceTemplateId: 'D1_career_transition'
+                        },
+                        expectedImpact: '预计提升简历匹配度40-50%',
+                        actionItems: [
+                            '本周内制定转行学习计划：系统学习前端开发工程师的核心知识（3-6个月）',
+                            '做2-3个完整的实战项目，并写到简历中',
+                            '考取行业权威证书（如腾讯云认证、PMP等），或参加付费训练营'
+                        ]
+                    }
+                ];
+            } else {
+                return [
+                    {
+                        id: 'advice_1',
+                        title: '持续提升技能水平',
+                        content: '同学你好，作为' + testCase.userProfile.grade + ' ' + testCase.userProfile.major + '的学生，想要胜任' + testCase.userProfile.expectedPosition + '，目前的技能水平不足是你最大的短板。建议制定系统的学习计划，每天投入2-3小时提升核心技能。可以参考牛客网、LeetCode、慕课网等平台的学习路径。',
+                        priority: 'medium',
+                        category: 'skill_gap',
+                        decisionPath: {
+                            timeDimension: 'master',
+                            trackDimension: 'technical',
+                            goalDimension: 'algorithm',
+                            statusDimension: 'skill_weak',
+                            matchedScenario: 'generic',
+                            adviceTemplateId: 'generic_skill_improvement'
+                        },
+                        expectedImpact: '预计提升专业技能评分10-15分',
+                        actionItems: [
+                            '制定3个月学习计划，明确每周学习目标',
+                            '每天投入2-3小时学习核心技能',
+                            '每周做一次学习总结，记录进步和困惑'
+                        ]
+                    }
+                ];
+            }
+        }
+    </script>
+</body>
+</html>

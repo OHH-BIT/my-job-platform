@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简历诊断模块测试 - 验证AI幻觉修复</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-case h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .input-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .input-section {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+        }
+        button {
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0051cc;
+        }
+        .result {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #dc2626;
+        }
+        .success {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+            color: #16a34a;
+        }
+        .warning {
+            background: #fffbeb;
+            border-color: #fde68a;
+            color: #d97706;
+        }
+        .check-item {
+            padding: 8px;
+            margin: 5px 0;
+            border-left: 3px solid #ddd;
+            background: #f9f9f9;
+        }
+        .check-pass {
+            border-color: #16a34a;
+            background: #f0fdf4;
+        }
+        .check-fail {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 简历诊断模块测试</h1>
+        <p>验证修复效果：确保系统100%忠实于用户原始文本，不凭空生成经历或技能</p>
+        <div style="background: #fef3c7; padding: 10px; border-radius: 6px; margin-top: 10px;">
+            <strong>⚠️ 测试重点：</strong>
+            <ol style="margin: 5px 0 0 0; padding-left: 20px;">
+                <li>输入简单简历（无项目、无技能），检查是否出现虚假亮点</li>
+                <li>输入包含项目的简历，检查是否准确提取项目信息</li>
+                <li>检查"建议"是否明确标注，不混淆事实与建议</li>
+                <li>打开浏览器控制台（F12），查看调试日志输出</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-case">
+        <h3>测试用例 1：极简简历（不应出现虚假亮点）</h3>
+        <div class="input-area">
+            <div class="input-section">
+                <label><strong>输入简历文本：</strong></label>
+                <textarea id="test1-input">张三
+1990年生
+高中毕业
+想找份工作</textarea>
+            </div>
+            <div class="input-section">
+                <label><strong>预期结果：</strong></label>
+                <div style="font-size: 12px; color: #666;">
+                    ✅ 不应出现"掌握React/Vue"等虚假技能<br>
+                    ✅ 不应出现"有项目经历"等虚假亮点<br>
+                    ✅ 应提示"简历内容过少"<br>
+                    ✅ 应提示"未检测到项目经历"<br>
+                    ✅ 应提示"未检测到具体技能"
+                </div>
+            </div>
+        </div>
+        <button onclick="runTest(1)">运行测试 1</button>
+        <div id="test1-result" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>测试用例 2：正常简历（应准确提取信息）</h3>
+        <div class="input-area">
+            <div class="input-section">
+                <label><strong>输入简历文本：</strong></label>
+                <textarea id="test2-input">李四
+教育背景：XX大学 计算机科学 本科 2020-2024
+技能：Python, Django, MySQL
+项目经历：
+1. 在线商城项目 - 使用Django开发后台，负责订单模块
+2. 数据分析平台 - 使用Python处理数据，生成报表
+实习经历：
+ABC公司 Python开发实习生 2023.7-2023.12</textarea>
+            </div>
+            <div class="input-section">
+                <label><strong>预期结果：</strong></label>
+                <div style="font-size: 12px; color: #666;">
+                    ✅ 应检测到技能：Python, Django, MySQL<br>
+                    ✅ 应检测到项目：在线商城项目、数据分析平台<br>
+                    ✅ 应检测到实习：ABC公司<br>
+                    ✅ 亮点应基于事实（如"简历中提及技术技能"）<br>
+                    ✅ 风险应基于事实（如"未检测到量化成果"）
+                </div>
+            </div>
+        </div>
+        <button onclick="runTest(2)">运行测试 2</button>
+        <div id="test2-result" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>测试用例 3：检查建议是否明确标注</h3>
+        <div class="input-area">
+            <div class="input-section">
+                <label><strong>输入简历文本：</strong></label>
+                <textarea id="test3-input">王五
+会一点编程
+做过一些小项目</textarea>
+            </div>
+            <div class="input-section">
+                <label><strong>预期结果：</strong></label>
+                <div style="font-size: 12px; color: #666;">
+                    ✅ 修改建议应包含"【建议】"前缀<br>
+                    ✅ 不应说"你的项目XXX"，而应该说"如果你有项目经验，建议..."<br>
+                    ✅ 原文引用应为"（你的简历中未提及XXX）"而非虚构内容
+                </div>
+            </div>
+        </div>
+        <button onclick="runTest(3)">运行测试 3</button>
+        <div id="test3-result" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>📋 验证清单（手动检查）</h3>
+        <div id="checklist">
+            <div class="check-item" id="check1">
+                <label>
+                    <input type="checkbox" onchange="toggleCheck('check1', this.checked)">
+                    <strong>测试1：</strong>输入极简简历，系统未生成虚假技能/项目亮点
+                </label>
+            </div>
+            <div class="check-item" id="check2">
+                <label>
+                    <input type="checkbox" onchange="toggleCheck('check2', this.checked)">
+                    <strong>测试2：</strong>输入正常简历，系统准确提取了技能、项目、实习
+                </label>
+            </div>
+            <div class="check-item" id="check3">
+                <label>
+                    <input type="checkbox" onchange="toggleCheck('check3', this.checked)">
+                    <strong>测试3：</strong>修改建议明确标注"【建议】"，未混淆事实与建议
+                </label>
+            </div>
+            <div class="check-item" id="check4">
+                <label>
+                    <input type="checkbox" onchange="toggleCheck('check4', this.checked)">
+                    <strong>控制台日志：</strong>打开F12控制台，看到"简历诊断调试信息"输出
+                </label>
+            </div>
+            <div class="check-item" id="check5">
+                <label>
+                    <input type="checkbox" onchange="toggleCheck('check5', this.checked)">
+                    <strong>空值处理：</strong>当必填项留白时，系统提示"未检测到XX"而非生成虚假内容
+                </label>
+            </div>
+        </div>
+        <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 6px;">
+            <strong>测试说明：</strong><br>
+            1. 由于浏览器限制，无法直接运行TypeScript代码。请在Next.js应用中测试：<br>
+            &nbsp;&nbsp;- 访问 <code>http://localhost:3000/resume-checker</code><br>
+            &nbsp;&nbsp;- 粘贴上述测试用例的简历文本<br>
+            &nbsp;&nbsp;- 点击"开始AI诊断"并观察结果<br>
+            2. 打开浏览器控制台（F12）查看调试日志<br>
+            3. 对照上述验证清单手动检查
+        </div>
+    </div>
+
+    <script>
+        function toggleCheck(id, checked) {
+            const element = document.getElementById(id);
+            if (checked) {
+                element.classList.remove('check-fail');
+                element.classList.add('check-pass');
+            } else {
+                element.classList.remove('check-pass');
+                element.classList.add('check-fail');
+            }
+        }
+
+        function runTest(testNumber) {
+            const input = document.getElementById(`test${testNumber}-input`).value;
+            const resultDiv = document.getElementById(`test${testNumber}-result`);
+            
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '⏳ 测试说明：\n\n由于浏览器安全限制，无法在此HTML页面中直接运行TypeScript诊断算法。\n\n请按以下步骤手动测试：\n1. 复制上方"输入简历文本"框中的内容\n2. 访问 http://localhost:3000/resume-checker\n3. 粘贴简历文本到文本框\n4. 点击"开始AI诊断"\n5. 观察诊断报告，对照"预期结果"进行检查\n6. 打开浏览器控制台（F12）查看调试日志\n\n-------- 输入的简历文本 --------\n' + input;
+            
+            resultDiv.className = 'result warning';
+        }
+
+        // 页面加载完成提示
+        window.onload = function() {
+            alert('欢迎使用简历诊断模块测试工具！\n\n由于技术限制，无法在此页面直接运行TypeScript代码。\n\n请按照页面中的"测试说明"手动测试Next.js应用。\n\n重点是：打开浏览器控制台（F12），查看调试日志输出！');
+        };
+    </script>
+</body>
+</html>

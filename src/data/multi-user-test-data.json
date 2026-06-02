@@ -1,0 +1,292 @@
+{
+  "users": [
+    {
+      "uid": "user-001",
+      "email": "zhangsan@example.com",
+      "passwordHash": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqGOqBVv6",
+      "nickname": "张三",
+      "avatarUrl": "https://example.com/avatars/zhangsan.jpg",
+      "status": "active",
+      "emailVerified": true,
+      "phoneVerified": false,
+      "source": "email",
+      "createdAt": "2026-01-15T10:00:00Z",
+      "updatedAt": "2026-03-20T15:30:00Z",
+      "lastLoginAt": "2026-03-25T09:00:00Z",
+      "loginCount": 15
+    },
+    {
+      "uid": "user-002",
+      "email": "lisi@example.com",
+      "passwordHash": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqGOqBVv6",
+      "nickname": "李四",
+      "avatarUrl": "https://example.com/avatars/lisi.jpg",
+      "status": "active",
+      "emailVerified": true,
+      "phoneVerified": true,
+      "source": "phone",
+      "createdAt": "2026-02-01T14:20:00Z",
+      "updatedAt": "2026-03-22T11:45:00Z",
+      "lastLoginAt": "2026-03-24T16:30:00Z",
+      "loginCount": 8
+    },
+    {
+      "uid": "user-003",
+      "email": "wangwu@example.com",
+      "passwordHash": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqGOqBVv6",
+      "nickname": "王五",
+      "avatarUrl": "https://example.com/avatars/wangwu.jpg",
+      "status": "active",
+      "emailVerified": false,
+      "phoneVerified": true,
+      "source": "wechat",
+      "createdAt": "2026-02-20T09:15:00Z",
+      "updatedAt": "2026-03-23T10:20:00Z",
+      "lastLoginAt": "2026-03-23T10:20:00Z",
+      "loginCount": 3
+    }
+  ],
+  "userProfiles": [
+    {
+      "id": "profile-user-001",
+      "userId": "user-001",
+      "profileData": {
+        "basicInfo": {
+          "grade": "大三",
+          "major": "计算机科学与技术",
+          "school": "清华大学",
+          "targetPosition": "前端工程师"
+        },
+        "skills": ["React", "TypeScript", "Node.js", "CSS"],
+        "projects": [
+          {
+            "name": "电商管理平台",
+            "role": "前端负责人",
+            "duration": "2025.06-2025.12",
+            "technologies": ["React", "TypeScript", "Ant Design"],
+            "description": "负责前端架构设计与核心模块开发"
+          }
+        ],
+        "dimensionScores": {
+          "professional": 85,
+          "communication": 78,
+          "leadership": 72,
+          "innovation": 80,
+          "resilience": 75
+        }
+      },
+      "isActive": true,
+      "completedAt": "2026-03-10T14:30:00Z",
+      "reportGenerated": true,
+      "createdAt": "2026-03-10T14:30:00Z",
+      "updatedAt": "2026-03-10T14:30:00Z"
+    },
+    {
+      "id": "profile-user-002",
+      "userId": "user-002",
+      "profileData": {
+        "basicInfo": {
+          "grade": "研二",
+          "major": "软件工程",
+          "school": "北京大学",
+          "targetPosition": "后端工程师"
+        },
+        "skills": ["Java", "Spring Boot", "MySQL", "Redis"],
+        "projects": [
+          {
+            "name": "微服务架构重构",
+            "role": "后端开发",
+            "duration": "2025.03-2025.12",
+            "technologies": ["Java", "Spring Boot", "MySQL", "Redis"],
+            "description": "参与微服务架构重构，负责用户服务设计与实现"
+          }
+        ],
+        "dimensionScores": {
+          "professional": 88,
+          "communication": 82,
+          "leadership": 78,
+          "innovation": 75,
+          "resilience": 80
+        }
+      },
+      "isActive": true,
+      "completedAt": "2026-03-15T10:00:00Z",
+      "reportGenerated": true,
+      "createdAt": "2026-03-15T10:00:00Z",
+      "updatedAt": "2026-03-15T10:00:00Z"
+    },
+    {
+      "id": "profile-user-003",
+      "userId": "user-003",
+      "profileData": {
+        "basicInfo": {
+          "grade": "大四",
+          "major": "人工智能",
+          "school": "中国科学技术大学",
+          "targetPosition": "算法工程师"
+        },
+        "skills": ["Python", "PyTorch", "TensorFlow", "C++"],
+        "projects": [
+          {
+            "name": "图像识别系统",
+            "role": "算法工程师",
+            "duration": "2025.09-2026.01",
+            "technologies": ["Python", "PyTorch", "TensorFlow"],
+            "description": "设计并实现图像识别系统，准确率达到95%"
+          }
+        ],
+        "dimensionScores": {
+          "professional": 90,
+          "communication": 75,
+          "leadership": 70,
+          "innovation": 85,
+          "resilience": 78
+        }
+      },
+      "isActive": true,
+      "completedAt": "2026-03-18T16:45:00Z",
+      "reportGenerated": true,
+      "createdAt": "2026-03-18T16:45:00Z",
+      "updatedAt": "2026-03-18T16:45:00Z"
+    }
+  ],
+  "jobApplications": [
+    {
+      "id": "app-user-001-001",
+      "userId": "user-001",
+      "company": "腾讯",
+      "companyLogo": "https://example.com/logos/tencent.png",
+      "position": "前端工程师",
+      "positionType": "fulltime",
+      "city": "深圳",
+      "salaryRange": "30-40K",
+      "appliedDate": "2026-03-15T00:00:00Z",
+      "channel": "campus_recruitment",
+      "resumeVersion": "v2.0",
+      "status": "interviewing",
+      "statusUpdatedAt": "2026-03-25T00:00:00Z",
+      "daysSinceUpdate": 1,
+      "interviews": [
+        {
+          "id": "interview-001",
+          "applicationId": "app-user-001-001",
+          "round": 1,
+          "type": "phone_screening",
+          "interviewer": "HR张三",
+          "interviewerRole": "HR",
+          "scheduledAt": "2026-03-20T14:00:00Z",
+          "startedAt": "2026-03-20T14:00:00Z",
+          "endedAt": "2026-03-20T14:30:00Z",
+          "duration": 30,
+          "questions": ["自我介绍", "为什么选择腾讯", "对前端工程师的理解"],
+          "userAnswers": [],
+          "keyHighlights": ["表达清晰", "项目经验丰富"],
+          "keyWeaknesses": ["对React 18新特性了解不够"],
+          "status": "completed",
+          "result": "passed"
+        }
+      ],
+      "currentRound": 2,
+      "reviewNotes": null,
+      "notes": "腾讯前端岗，面试体验不错",
+      "tags": ["腾讯", "前端", "校招"],
+      "createdAt": "2026-03-15T10:00:00Z",
+      "updatedAt": "2026-03-25T15:30:00Z"
+    },
+    {
+      "id": "app-user-002-001",
+      "userId": "user-002",
+      "company": "阿里巴巴",
+      "companyLogo": "https://example.com/logos/alibaba.png",
+      "position": "后端工程师",
+      "positionType": "fulltime",
+      "city": "杭州",
+      "salaryRange": "35-45K",
+      "appliedDate": "2026-03-10T00:00:00Z",
+      "channel": "official_website",
+      "resumeVersion": "v1.5",
+      "status": "offer",
+      "statusUpdatedAt": "2026-03-24T00:00:00Z",
+      "daysSinceUpdate": 2,
+      "interviews": [
+        {
+          "id": "interview-002",
+          "applicationId": "app-user-002-001",
+          "round": 1,
+          "type": "technical",
+          "interviewer": "技术经理李四",
+          "interviewerRole": "技术经理",
+          "scheduledAt": "2026-03-15T10:00:00Z",
+          "startedAt": "2026-03-15T10:00:00Z",
+          "endedAt": "2026-03-15T11:00:00Z",
+          "duration": 60,
+          "questions": ["Java集合框架", "Spring Boot自动配置原理", "MySQL索引优化"],
+          "userAnswers": [],
+          "keyHighlights": ["基础扎实", "项目经验匹配"],
+          "keyWeaknesses": ["分布式系统经验不足"],
+          "status": "completed",
+          "result": "passed"
+        }
+      ],
+      "currentRound": 0,
+      "reviewNotes": {
+        "summary": "阿里巴巴后端岗面试通过，拿到Offer",
+        "highlights": ["技术基础扎实", "项目经验丰富", "沟通能力强"],
+        "weaknesses": ["分布式系统经验不足", "高并发场景理解不够深入"],
+        "suggestions": ["学习分布式系统理论", "深入研究高并发架构"]
+      },
+      "notes": "阿里巴巴Offer已拿，薪资满意",
+      "tags": ["阿里巴巴", "后端", "Offer"],
+      "createdAt": "2026-03-10T09:00:00Z",
+      "updatedAt": "2026-03-24T11:45:00Z"
+    }
+  ],
+  "jobMatches": [
+    {
+      "id": "match-user-001-001",
+      "userId": "user-001",
+      "jobId": "job-001",
+      "jobTitle": "腾讯前端工程师",
+      "company": "腾讯",
+      "department": "微信事业群",
+      "matchResult": {
+        "overallScore": 82,
+        "dimensionScores": {
+          "skillMatch": 85,
+          "experienceMatch": 78,
+          "educationMatch": 90,
+          "potentialMatch": 80
+        },
+        "gapAnalysis": ["缺少React 18+新特性经验", "项目经验不够丰富"],
+        "suggestions": ["学习React 18+新特性", "参与开源项目积累经验"]
+      },
+      "isActive": true,
+      "isFavorite": true,
+      "createdAt": "2026-03-12T10:00:00Z",
+      "updatedAt": "2026-03-12T10:00:00Z"
+    },
+    {
+      "id": "match-user-002-001",
+      "userId": "user-002",
+      "jobId": "job-002",
+      "jobTitle": "阿里巴巴后端工程师",
+      "company": "阿里巴巴",
+      "department": "淘宝事业部",
+      "matchResult": {
+        "overallScore": 88,
+        "dimensionScores": {
+          "skillMatch": 90,
+          "experienceMatch": 85,
+          "educationMatch": 95,
+          "potentialMatch": 85
+        },
+        "gapAnalysis": ["缺少分布式系统经验", "高并发场景理解不够深入"],
+        "suggestions": ["学习分布式系统理论", "深入研究高并发架构"]
+      },
+      "isActive": true,
+      "isFavorite": true,
+      "createdAt": "2026-03-14T14:30:00Z",
+      "updatedAt": "2026-03-14T14:30:00Z"
+    }
+  ]
+}
