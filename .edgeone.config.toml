@@ -1,0 +1,46 @@
+# EdgeOne Pages 部署配置
+# 此文件定义前端项目的构建触发条件和缓存策略
+
+# ============================
+# 构建配置
+# ============================
+[build]
+  # 构建命令：先清理 .next 缓存目录，再执行 Next.js 静态导出构建
+  command = "npm run build"
+
+  # 构建输出目录（Next.js 静态导出默认输出到 out/）
+  output_directory = "out"
+
+  # 安装依赖命令
+  install_command = "npm ci --prefer-offline"
+
+  # Node.js 版本（与项目本地环境保持一致）
+  node_version = "18"
+
+# ============================
+# 构建缓存策略
+# ============================
+# 将以下目录添加到构建缓存中，避免每次部署都从头安装和编译
+# 这能显著减少构建时间（从数分钟降至数十秒）
+
+[cache]
+  # node_modules：npm 依赖包缓存
+  # 只要 package-lock.json 不变，即可直接复用
+  [[cache.paths]]
+    path = "node_modules"
+    key = "package-lock.json"
+
+  # .next/cache：Next.js 构建缓存
+  # 包含编译后的页面缓存和增量构建信息
+  [[cache.paths]]
+    path = ".next/cache"
+    key = "src/**, next.config.ts, tsconfig.json"
+
+# ============================
+# 环境变量（按需配置）
+# ============================
+[env]
+  # 如需在 EdgeOne 构建时使用环境变量，在此处声明
+  # 实际值请在 EdgeOne 控制台的「环境变量」面板中设置
+  # NEXT_PUBLIC_API_URL = "https://your-api-domain.com"
+  # NODE_ENV = "production"
