@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * API 端点：保存用户画像
  * POST /api/user-profile/save

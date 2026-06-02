@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * 岗位基准库 API
  * GET /api/job-benchmarks?title=xxx

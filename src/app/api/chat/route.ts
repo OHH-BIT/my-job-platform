@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText, getAIServiceStatus } from '@/lib/ai-service';
 import { searchKnowledgeBase, getFallbackResponse, TENCENT_KNOWLEDGE_BASE } from '@/lib/tencent-knowledge-base';
@@ -36,7 +38,7 @@ function getSmartFallback(query: string): string {
     if (lowerQuery.includes(keyword)) return response;
   }
 
-  return null;
+  return '';
 }
 
 export async function POST(request: NextRequest) {

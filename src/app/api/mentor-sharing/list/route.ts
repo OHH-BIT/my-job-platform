@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 // 前辈说 - 帖子列表API
 // 功能：获取帖子列表，支持分页、筛选、搜索
 

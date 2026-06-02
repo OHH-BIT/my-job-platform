@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * API 端点：获取用户画像
  * GET /api/user-profile/get

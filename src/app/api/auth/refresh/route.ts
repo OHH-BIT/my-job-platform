@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * Token 刷新 API
  * POST /api/auth/refresh

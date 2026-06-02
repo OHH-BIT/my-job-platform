@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 import { NextRequest, NextResponse } from "next/server";
 import { globalMockInterviews } from "../start/route";
 import { generateText, generateTextSSE } from "@/lib/ai-service";
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 检查是否达到题目数量上限
-    const isCompleted = session.currentQuestionIndex + 1 >= session.config.questionCount;
+    const isCompleted = session.currentQuestionIndex + 1 >= (session.config.questionCount ?? 5);
 
     if (isCompleted) {
       // 面试结束

@@ -101,16 +101,16 @@ export default function JobTrackingPage() {
       params.append('page', pagination.page.toString());
       params.append('pageSize', pagination.pageSize.toString());
 
-      const result: GetApplicationsResponse = await api.get(`/api/job-tracking/applications?${params.toString()}`);
+      const result = await api.get(`/api/job-tracking/applications?${params.toString()}`);
 
       if (result.success) {
-        setApplications(result.data);
+        setApplications(result.data ?? []);
         setStats(result.stats);
         setPagination({
-          page: result.page,
-          pageSize: result.pageSize,
-          total: result.total,
-          totalPages: result.totalPages,
+          page: result.page ?? 1,
+          pageSize: result.pageSize ?? 10,
+          total: result.total ?? 0,
+          totalPages: result.totalPages ?? 1,
         });
       } else {
         setError(result.error || '获取投递记录失败');

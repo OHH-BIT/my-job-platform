@@ -1,3 +1,6 @@
+export const dynamic = 'force-static';
+export function generateStaticParams() { return []; }
+
 /**
  * 求职进度与复盘看板 - 单条投递记录 API
  * 

@@ -1,6 +1,8 @@
+export const dynamic = 'force-static';
+
 /**
  * API：生成智能动态成长路径 v3.0
- *
+ * 
  * v3.0 重构：
  * 1. 支持新模式：接收 grade + currentSkills + targetJobId（用户实时输入）
  * 2. 年级感知：根据年级生成差异化路径

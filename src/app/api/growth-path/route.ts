@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * API 端点：获取用户的成长路径
  * GET /api/growth-path?userId=xxx&targetJobId=xxx

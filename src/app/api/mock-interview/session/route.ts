@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * 获取面试会话数据
  * POST /api/mock-interview/session

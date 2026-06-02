@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 import { NextRequest, NextResponse } from "next/server";
 import { JOB_POSITIONS } from "@/lib/job-matching";
 import { generateText, buildInterviewerPrompt } from "@/lib/ai-service";

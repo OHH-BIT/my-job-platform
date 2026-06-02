@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 // 前辈说 - 创建帖子API
 // 功能：接收前端提交的标题、内容及图片文件，创建新帖子并存入内存存储
 

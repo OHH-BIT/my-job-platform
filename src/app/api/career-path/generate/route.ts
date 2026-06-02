@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * 动态成长路径规划 - 生成API
  * 

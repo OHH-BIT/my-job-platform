@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * AI 动态出题引擎 API
  * POST /api/ai-interview/generate-questions

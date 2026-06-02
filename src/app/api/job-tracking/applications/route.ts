@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * 求职进度与复盘看板 - 投递记录列表API
  * 

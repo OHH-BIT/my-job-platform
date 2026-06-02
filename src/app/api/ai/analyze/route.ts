@@ -1,6 +1,9 @@
+export const dynamic = 'force-static';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
+
  * AI 智能画像分析 API
  * 
  * 核心功能：

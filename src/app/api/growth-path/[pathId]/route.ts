@@ -1,3 +1,6 @@
+export const dynamic = 'force-static';
+export function generateStaticParams() { return []; }
+
 /**
  * API 端点：获取和更新成长路径
  * GET /api/growth-path/:pathId

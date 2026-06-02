@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * 邮箱登录接口
  * 

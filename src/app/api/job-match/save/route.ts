@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 /**
  * 岗位匹配 - 云端存储API
  * 
