@@ -117,7 +117,104 @@ async function fetchJobBenchmark(jobId: string, jobTitle: string): Promise<JobBe
 // ============================================
 
 // ============================================
-// Zod Schema：AI 返回结果格式校验
+// 后校验：对比 AI 输出与用户原始输入，截断幻觉内容
+// ============================================
+
+/**
+ * 提取用户输入中的所有标签关键词（技能名、经历名等）
+ */
+function extractUserKeywords(currentSkills: string): string[] {
+  if (!currentSkills || !currentSkills.trim()) return [];
+  return currentSkills
+    .split(/[\n,;，；、•·\-\*]+/)
+    .map(s => s.trim().replace(/^(掌握|了解|精通|熟练|熟悉|学过|会用|正在学)\s*/i, '').replace(/\s*(基础|入门|进阶|高级|中等)\s*/g, '').trim())
+    .filter(Boolean);
+}
+
+/**
+ * 校验 AI 输出的 userProfileSummary 是否包含用户未提供的技能名
+ * 如果检测到幻觉技能，强制截断并返回修正后的文本
+ */
+function sanitizeUserProfileSummary(summary: string, userKeywords: string[]): { text: string; hallucinated: string[] } {
+  const hallucinated: string[] = [];
+  let cleaned = summary;
+
+  // 构建常见技能词库（用于检测 AI 可能编造的技能）
+  const commonTechSkills = [
+    'Python', 'Java', 'JavaScript', 'TypeScript', 'React', 'Vue', 'Angular', 'Node.js',
+    'SQL', 'MySQL', 'MongoDB', 'Redis', 'Docker', 'Kubernetes', 'K8s', 'Git',
+    'C++', 'C#', 'Go', 'Rust', 'PHP', 'Ruby', 'Swift', 'Kotlin', 'Flutter',
+    'Spring', 'Django', 'Flask', 'Express', 'Next.js', 'Nuxt', 'Webpack', 'Vite',
+    'TensorFlow', 'PyTorch', 'Scikit-learn', 'Pandas', 'NumPy', 'Matplotlib',
+    'AWS', 'Azure', 'GCP', 'Linux', 'Nginx', 'GraphQL', 'REST', 'API',
+    '机器学习', '深度学习', '自然语言处理', 'NLP', '计算机视觉', '数据分析',
+    '数据挖掘', '算法', '数据结构', '设计模式', '微服务', '分布式',
+    '前端', '后端', '全栈', 'iOS', 'Android', 'HTML', 'CSS', 'Sass', 'Tailwind',
+    'Jenkins', 'CI/CD', 'TDD', 'BDD', 'Agile', 'Scrum', 'DevOps', '产品经理',
+    '项目管理', '沟通能力', '团队协作', '领导力', '创新', '抗压', '学习能力强',
+    'Figma', 'Sketch', 'Photoshop', 'Illustrator', 'UI设计', 'UX设计',
+    'Hadoop', 'Spark', 'Flink', 'Kafka', 'RabbitMQ', 'Elasticsearch',
+    'Oracle', 'PostgreSQL', 'SQLite', 'DynamoDB', 'Cassandra',
+  ];
+
+  // 检测：summary 中出现的技能名如果不在 userKeywords 中，视为幻觉
+  for (const skill of commonTechSkills) {
+    if (userKeywords.some(k => k.toLowerCase() === skill.toLowerCase())) continue;
+    const regex = new RegExp(`(?:具备?|掌握|精通|熟悉|了解|会|熟练使用?|擅长|运用)\\s*${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+    if (regex.test(cleaned)) {
+      hallucinated.push(skill);
+      cleaned = cleaned.replace(regex, '');
+    }
+  }
+
+  // 额外检测中英文括号包裹的技能名，如"具备 Python 和 Java 能力"
+  for (const skill of commonTechSkills) {
+    if (userKeywords.some(k => k.toLowerCase() === skill.toLowerCase())) continue;
+    const regex2 = new RegExp(`(?:和|与|、|,|，)?\\s*${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*(?:能力|技能|技术|开发|编程|语言)?`, 'gi');
+    // 只在 "具备/掌握/拥有...能力" 的语境中才视为幻觉
+    const possessMatch = new RegExp(`(?:具备?|掌握|精通|熟悉|了解|有|拥有|已|含)[^。！？]*${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+    if (possessMatch.test(cleaned) && !hallucinated.includes(skill)) {
+      hallucinated.push(skill);
+      // 移除包含该技能的整句
+      cleaned = cleaned.replace(possessMatch, (match) => {
+        return match.replace(new RegExp(`[^，。、；]*${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^。]*`, 'i'), '').trim();
+      }).trim();
+    }
+  }
+
+  // 清理多余标点
+  cleaned = cleaned.replace(/[,，、]{2,}/g, '、').replace(/\s{2,}/g, ' ').replace(/^[，。、\s]+/, '').replace(/[，。、\s]+$/, '');
+
+  return { text: cleaned || summary, hallucinated };
+}
+
+/**
+ * 校验 userOwnedConditions 数组，过滤掉包含用户未提供技能的条目
+ */
+function sanitizeUserOwnedConditions(conditions: string[], userKeywords: string[]): { items: string[]; removed: string[] } {
+  const removed: string[] = [];
+  const items = conditions.filter(condition => {
+    // 提取条件中可能包含的技能名
+    for (const kw of userKeywords) {
+      if (condition.toLowerCase().includes(kw.toLowerCase())) return true; // 包含用户标签，保留
+    }
+    // 如果条件中声称用户具备某种具体技能但用户没填过，移除
+    const skillClaim = condition.match(/(?:掌握|精通|熟悉|了解|会|熟练|具备|拥有)\s*(.+)/);
+    if (skillClaim) {
+      const claimedSkill = skillClaim[1].trim();
+      const isUserKeyword = userKeywords.some(k => claimedSkill.toLowerCase().includes(k.toLowerCase()));
+      if (!isUserKeyword) {
+        removed.push(condition);
+        return false;
+      }
+    }
+    return true;
+  });
+  return { items, removed };
+}
+
+// ============================================
+// AI 差距分析（调用大模型）
 // ============================================
 
 const AIAnalysisSchema = z.object({
@@ -133,10 +230,6 @@ const AIAnalysisSchema = z.object({
   insufficientHint: z.string().optional().describe('当输入不足时的提示语'),
 });
 
-// ============================================
-// AI 差距分析（调用大模型）
-// ============================================
-
 async function generateAIAnalysis(
   grade: string,
   currentSkills: string,
@@ -147,56 +240,77 @@ async function generateAIAnalysis(
   const baseURL = process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || 'https://api.openai.com/v1';
   const model = process.env.AI_MODEL || process.env.OPENAI_MODEL || 'deepseek-chat';
 
-  // 判断用户输入是否过少
   const hasMinimalInput = !currentSkills || currentSkills.trim().length === 0;
+  const userKeywords = extractUserKeywords(currentSkills);
 
   if (!apiKey) {
     return generateRuleBasedAnalysis(grade, currentSkills, targetJob, skillGaps, hasMinimalInput);
   }
 
-  const systemPrompt = `你是一位资深的职业发展顾问和 AI 导师。你的核心原则是**严格基于事实，杜绝一切幻觉**。
+  // ========== 零容忍防幻觉 System Prompt ==========
+  const systemPrompt = `# 🔒 身份与绝对红线
 
-## 绝对规则（必须遵守）
-1. 你只能基于用户提供的标签进行分析和规划。
-2. 如果用户缺少某项技能或经历，绝对不能假设用户已经具备，更不能凭空捏造虚假信息。
-3. 必须严格区分"用户已具备的条件"和"建议补充的路径"。
-4. 输出必须是严格的 JSON 格式，不要包含任何 Markdown 标记、代码块或闲聊文本。
+你是一个**绝对严谨的数据分析师**。你没有任何主观推断的权利。
 
-## 输出要求
-返回一个 JSON 对象，结构如下：
+## 🚫 零容忍防幻觉指令（违反任何一条 = 输出作废）
+
+1. **你的输入只有且仅有用户提供的 JSON 数据。** 这是你唯一被允许使用的信息来源。
+2. **严禁、绝对禁止、无论如何都不能在输出中添加任何用户输入中不存在的技能、经历或标签。**
+3. **如果用户没填某项内容，你的输出中绝对不能出现它。** 缺失就是缺失，写"未提供"即可。
+4. **禁止推断用户的隐性能力。** 即使用户选了"Python"，你也不能推断用户"一定懂 NumPy"或"应该会用 Flask"。
+5. **禁止美化用户画像。** 不要用"具备良好的XX能力"这类模糊表述来掩盖信息缺失。
+
+## 📐 输入输出强绑定规则
+
+### userProfileSummary 生成规则：
+- 必须逐字引用用户提供的标签，不得添加任何用户未提供的词汇。
+- 格式严格限定为："基于用户提供的：[标签A]、[标签B]。当前年级：[年级]。"
+- ❌ 错误示例（用户只选了 Python）："具备 Python 和 Java 能力，前端基础扎实"
+- ✅ 正确示例（用户只选了 Python）："基于用户提供的：Python。当前年级：大三。"
+- ❌ 错误示例（用户没有任何技能）："具备一定编程基础，学习能力较强"
+- ✅ 正确示例（用户没有任何技能）："用户未提供任何技能标签。当前年级：大三。"
+
+### userOwnedConditions 生成规则：
+- 只能列出用户输入中**明确存在**的技能/标签
+- 如果用户什么都没填，此数组必须为空 []
+- 绝对禁止出现"具备良好的学习能力""有团队合作精神"等未经用户声明的软技能
+
+### gapAnalysis 生成规则：
+- 只能基于"岗位要求技能 - 用户已提供技能"的差集
+- 不要编造用户"隐含掌握"的技能来缩小差距
+
+## 📋 输出 JSON 结构（严格遵守）
+
 {
-  "userProfileSummary": "基于用户提供的：[用户实际标签A]、[用户实际标签B]...",
-  "userOwnedConditions": ["用户实际具备的条件1", "用户实际具备的条件2"],
-  "gapAnalysis": ["缺失技能1（目标岗位要求，用户不具备）", "缺失经历2"],
+  "userProfileSummary": "基于用户提供的：[精确引用用户标签]。当前年级：[年级]。",
+  "userOwnedConditions": ["仅列出用户输入中明确存在的条件"],
+  "gapAnalysis": ["仅列出岗位要求中用户不具备的"],
   "learningPath": [
-    {"phase": 1, "title": "基础巩固", "tasks": ["具体可执行的任务..."]}
+    {"phase": 1, "title": "阶段名", "tasks": ["具体任务"]}
   ],
   "isInsufficientInput": false,
-  "insufficientHint": "可选，仅在输入不足时提供"
+  "insufficientHint": "仅在输入不足时填写"
 }
 
-## 输入不足处理
-如果用户只填了目标岗位但没有任何技能标签：
-- 将 isInsufficientInput 设为 true
-- 在 insufficientHint 中提示用户补充更多标签
-- learningPath 提供该岗位的通用基础建议即可
-- 不要为用户编造任何技能或经历
+## ⚠️ 输入不足处理
+如果用户未提供任何技能标签：
+- isInsufficientInput 必须为 true
+- userProfileSummary 必须明确写"用户未提供任何技能标签"
+- userOwnedConditions 必须为空数组 []
+- 不要为用户编造任何技能或经历`;
 
-## 分析原则
-- 结合年级特点：大一大二侧重基础，大三大四侧重实战和求职，研究生侧重深度和科研
-- 每个建议要具体可执行，不要泛泛而谈`;
+  const userMessage = `## 用户实际数据（这是你唯一的信息来源，绝对不可添加任何未列出的内容）
 
-  const userMessage = `## 用户实际数据（这是唯一的信息来源，不可添加任何未列出的内容）
+**用户年级**：${grade}
+**用户当前技能**：${currentSkills || '（未提供任何技能）'}
+**目标岗位**：${targetJob.jobTitle}（${targetJob.companyLevel} · ${targetJob.department}）
+**岗位要求技能**：${targetJob.requiredSkills.map(s => `${s.name}(${s.minLevel}分${s.isRequired ? ',必须' : ''})`).join('、')}
 
-用户年级：${grade}
-用户当前技能：${currentSkills || '（未提供任何技能）'}
-目标岗位：${targetJob.jobTitle}（${targetJob.companyLevel} · ${targetJob.department}）
-岗位要求技能：${targetJob.requiredSkills.map(s => `${s.name}(${s.minLevel}分${s.isRequired ? ',必须' : ''})`).join('、')}
+**差距引擎数值结果（仅供你参考差距大小，不代表用户拥有这些技能）**：
+${skillGaps.map(g => `- ${g.skillName}：用户当前${g.currentLevel}分，岗位要求${g.requiredLevel}分，差距${g.gapScore}分（${g.gapLevel}）`).join('\n')}
 
-## 差距分析引擎结果（基于用户实际技能 vs 岗位要求的数值对比）
-${skillGaps.map(g => `- ${g.skillName}：当前${g.currentLevel}分，要求${g.requiredLevel}分，差距${g.gapScore}分（${g.gapLevel}）`).join('\n')}
-
-请基于以上数据生成 JSON 分析结果。记住：只使用用户提供的数据，绝不编造。`;
+---
+**再次强调：你只能使用上面"用户当前技能"中列出的内容。如果该栏为空或写着"未提供"，你绝对不能在输出中声称用户具备任何技能。**`;
 
   try {
     const response = await fetch(`${baseURL}/chat/completions`, {
@@ -211,7 +325,7 @@ ${skillGaps.map(g => `- ${g.skillName}：当前${g.currentLevel}分，要求${g.
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        temperature: 0.3,
+        temperature: 0.1,
         max_tokens: 2000,
         response_format: { type: 'json_object' },
       }),
@@ -228,46 +342,57 @@ ${skillGaps.map(g => `- ${g.skillName}：当前${g.currentLevel}分，要求${g.
       return generateRuleBasedAnalysis(grade, currentSkills, targetJob, skillGaps, hasMinimalInput);
     }
 
-    // Zod 校验 + 兼容性 JSON 解析
+    // 解析 JSON
     let parsed: any;
     try {
       parsed = JSON.parse(rawContent);
     } catch {
-      // 兼容：尝试提取 ```json ... ``` 代码块
       const codeBlockMatch = rawContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
       if (codeBlockMatch) {
         try { parsed = JSON.parse(codeBlockMatch[1]); } catch { parsed = null; }
       }
     }
 
-    if (parsed) {
-      const result = AIAnalysisSchema.safeParse(parsed);
-      if (result.success) {
-        const r = result.data;
-        let output = `## 分析总结\n\n`;
-        output += `${r.userProfileSummary}\n\n`;
-        if (r.userOwnedConditions.length > 0) {
-          output += `**已具备的条件：**${r.userOwnedConditions.map(c => `\n- ${c}`).join('')}\n\n`;
-        }
-        if (r.gapAnalysis.length > 0) {
-          output += `**需要补齐的差距：**${r.gapAnalysis.map(g => `\n- ${g}`).join('')}\n\n`;
-        }
-        if (r.isInsufficientInput && r.insufficientHint) {
-          output += `> ⚠️ ${r.insufficientHint}\n\n`;
-        }
-        output += `## 学习路径\n\n`;
-        r.learningPath.forEach(p => {
-          output += `### 阶段${p.phase}：${p.title}\n`;
-          p.tasks.forEach(t => { output += `- ${t}\n`; });
-          output += '\n';
-        });
-        return output;
-      }
-      // Zod 校验失败，回退
-      console.warn('[成长路径生成] AI 返回的 JSON 格式校验失败:', result.error);
+    if (!parsed) {
+      return generateRuleBasedAnalysis(grade, currentSkills, targetJob, skillGaps, hasMinimalInput);
     }
 
-    return generateRuleBasedAnalysis(grade, currentSkills, targetJob, skillGaps, hasMinimalInput);
+    // Zod 校验
+    const result = AIAnalysisSchema.safeParse(parsed);
+    if (!result.success) {
+      console.warn('[成长路径生成] Zod 校验失败:', JSON.stringify(result.error.issues));
+      return generateRuleBasedAnalysis(grade, currentSkills, targetJob, skillGaps, hasMinimalInput);
+    }
+
+    const r = result.data;
+
+    // ========== 后校验：对比 AI 输出与用户原始输入 ==========
+    const { text: sanitizedSummary, hallucinated: hallucinatedSkills } = sanitizeUserProfileSummary(r.userProfileSummary, userKeywords);
+    const { items: sanitizedConditions, removed: removedConditions } = sanitizeUserOwnedConditions(r.userOwnedConditions, userKeywords);
+
+    if (hallucinatedSkills.length > 0 || removedConditions.length > 0) {
+      console.warn(`[成长路径生成-防幻觉] 检测到幻觉内容已截断！幻觉技能: [${hallucinatedSkills.join(', ')}], 移除条件: [${removedConditions.join(', ')}]`);
+    }
+
+    // 使用校验后的数据构建输出
+    let output = `## 分析总结\n\n`;
+    output += `${sanitizedSummary}\n\n`;
+    if (sanitizedConditions.length > 0) {
+      output += `**已具备的条件：**${sanitizedConditions.map(c => `\n- ${c}`).join('')}\n\n`;
+    }
+    if (r.gapAnalysis.length > 0) {
+      output += `**需要补齐的差距：**${r.gapAnalysis.map(g => `\n- ${g}`).join('')}\n\n`;
+    }
+    if (r.isInsufficientInput && r.insufficientHint) {
+      output += `> ⚠️ ${r.insufficientHint}\n\n`;
+    }
+    output += `## 学习路径\n\n`;
+    r.learningPath.forEach(p => {
+      output += `### 阶段${p.phase}：${p.title}\n`;
+      p.tasks.forEach(t => { output += `- ${t}\n`; });
+      output += '\n';
+    });
+    return output;
   } catch (error) {
     console.warn('[成长路径生成] AI 分析异常:', error);
     return generateRuleBasedAnalysis(grade, currentSkills, targetJob, skillGaps, hasMinimalInput);

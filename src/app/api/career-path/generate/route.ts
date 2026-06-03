@@ -25,12 +25,99 @@ interface GenerateRequest {
 }
 
 // ============================================
-// AI Prompt构建器
+// 后校验：对比 AI 输出与用户原始输入，截断幻觉内容
+// ============================================
+
+/**
+ * 提取用户输入中的所有标签关键词
+ */
+function extractUserKeywordsFromProfile(profile: UserProfileSnapshot): string[] {
+  const keywords: string[] = [];
+  // 技能
+  keywords.push(...profile.skills.map(s => s.toLowerCase()));
+  // 项目名和技术栈
+  for (const p of profile.projects) {
+    keywords.push(p.name.toLowerCase());
+    keywords.push(...p.technologies.map(t => t.toLowerCase()));
+  }
+  // 实习公司名
+  for (const i of profile.internships) {
+    keywords.push(i.company.toLowerCase());
+    keywords.push(i.position.toLowerCase());
+  }
+  // 专业
+  keywords.push(profile.major.toLowerCase());
+  return [...new Set(keywords.filter(Boolean))];
+}
+
+/**
+ * 校验 userProfileSummary 是否包含用户未提供的内容
+ */
+function sanitizeProfileSummary(summary: string, userKeywords: string[]): { text: string; hallucinated: string[] } {
+  const hallucinated: string[] = [];
+  let cleaned = summary;
+
+  const commonTechSkills = [
+    'Python', 'Java', 'JavaScript', 'TypeScript', 'React', 'Vue', 'Angular', 'Node.js',
+    'SQL', 'MySQL', 'MongoDB', 'Redis', 'Docker', 'Kubernetes', 'K8s', 'Git',
+    'C++', 'C#', 'Go', 'Rust', 'PHP', 'Ruby', 'Swift', 'Kotlin', 'Flutter',
+    'Spring', 'Django', 'Flask', 'Express', 'Next.js', 'Nuxt', 'Webpack', 'Vite',
+    'TensorFlow', 'PyTorch', 'Scikit-learn', 'Pandas', 'NumPy', 'Matplotlib',
+    'AWS', 'Azure', 'GCP', 'Linux', 'Nginx', 'GraphQL', 'REST', 'API',
+    '机器学习', '深度学习', '自然语言处理', 'NLP', '计算机视觉', '数据分析',
+    '数据挖掘', '算法', '数据结构', '设计模式', '微服务', '分布式',
+    '前端', '后端', '全栈', 'iOS', 'Android', 'HTML', 'CSS', 'Sass', 'Tailwind',
+    'Figma', 'Sketch', 'UI设计', 'UX设计',
+    'Hadoop', 'Spark', 'Flink', 'Kafka', 'Elasticsearch',
+    'Oracle', 'PostgreSQL',
+    'LeetCode', '竞赛', '论文', '专利',
+  ];
+
+  for (const skill of commonTechSkills) {
+    if (userKeywords.some(k => k === skill.toLowerCase())) continue;
+    const possessMatch = new RegExp(`(?:具备?|掌握|精通|熟悉|了解|有|拥有|已|含|擅长|熟练)[^。！？]*${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+    if (possessMatch.test(cleaned)) {
+      hallucinated.push(skill);
+      cleaned = cleaned.replace(possessMatch, (match) => {
+        return match.replace(new RegExp(`[^，。、；]*${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^。]*`, 'i'), '').trim();
+      }).trim();
+    }
+  }
+
+  cleaned = cleaned.replace(/[,，、]{2,}/g, '、').replace(/\s{2,}/g, ' ').replace(/^[，。、\s]+/, '').replace(/[，。、\s]+$/, '');
+  return { text: cleaned || summary, hallucinated };
+}
+
+/**
+ * 校验 userOwnedConditions，过滤掉包含用户未提供技能的条目
+ */
+function sanitizeConditions(conditions: string[], userKeywords: string[]): { items: string[]; removed: string[] } {
+  const removed: string[] = [];
+  const items = conditions.filter(condition => {
+    for (const kw of userKeywords) {
+      if (condition.toLowerCase().includes(kw.toLowerCase())) return true;
+    }
+    const skillClaim = condition.match(/(?:掌握|精通|熟悉|了解|会|熟练|具备|拥有)\s*(.+)/);
+    if (skillClaim) {
+      const claimedSkill = skillClaim[1].trim();
+      const isUserKeyword = userKeywords.some(k => claimedSkill.toLowerCase().includes(k.toLowerCase()));
+      if (!isUserKeyword) {
+        removed.push(condition);
+        return false;
+      }
+    }
+    return true;
+  });
+  return { items, removed };
+}
+
+// ============================================
+// AI Prompt构建器（v3.0 零容忍防幻觉）
 // ============================================
 
 /**
  * 构建AI Prompt（差距分析 + 时间轴生成）
- * v2.0：强化防幻觉 + 结构化 JSON + 输入不足处理
+ * v3.0：零容忍防幻觉 + 输入输出强绑定 + 后校验机制
  */
 function buildGapAnalysisPrompt(
   userProfile: UserProfileSnapshot,
@@ -38,156 +125,164 @@ function buildGapAnalysisPrompt(
   currentTime: string,
   currentSemester: string
 ): string {
-  // 判断输入是否过少
   const hasSkills = userProfile.skills.length > 0;
   const hasProjects = userProfile.projects.length > 0;
   const hasMinimalInput = !hasSkills && !hasProjects;
 
-  return `你是一位资深的大学生职业规划顾问和AI算法专家。你的核心原则是**严格基于事实，杜绝一切幻觉**。
+  // 将用户所有标签序列化为禁止超越的边界
+  const userSkillList = userProfile.skills.length > 0
+    ? userProfile.skills.map(s => `"${s}"`).join('、')
+    : '（无）';
+  const userProjectList = userProfile.projects.length > 0
+    ? userProfile.projects.map(p => `"${p.name}"`).join('、')
+    : '（无）';
+  const userInternList = userProfile.internships.length > 0
+    ? userProfile.internships.map(i => `"${i.company} - ${i.position}"`).join('、')
+    : '（无）';
 
-## 绝对规则（必须遵守）
-1. 你只能基于"用户画像"中列出的数据进行差距分析和规划。
-2. 如果用户缺少某项技能或经历，绝对不能假设用户已经具备，更不能凭空捏造虚假信息。
-3. 必须严格区分"用户已具备的条件"和"建议补充的路径"。
-4. 输出必须是严格的 JSON 格式，不要包含任何 Markdown 代码块标记或解释性文字。
+  return `# 🔒 身份与绝对红线
 
-## 输入数据
+你是一个**绝对严谨的数据分析师**。你没有任何主观推断的权利。
 
-### 用户画像（User Profile）—— 这是你唯一的信息来源
+## 🚫 零容忍防幻觉指令（违反任何一条 = 输出作废）
+
+1. **你的输入只有且仅有下方"用户画像"中列出的数据。** 这是你唯一被允许使用的信息来源。
+2. **严禁、绝对禁止、无论如何都不能在输出中添加任何用户输入中不存在的技能、经历或标签。**
+3. **如果用户没填某项内容，你的输出中绝对不能出现它。** 缺失就是缺失，写"未提供"即可。
+4. **禁止推断用户的隐性能力。** 即使用户填了一个项目用了"Python"，你也不能推断用户"精通 Python"。
+5. **禁止美化用户画像。** 不要用"具备良好的XX能力""有一定XX经验"这类模糊表述来掩盖信息缺失。
+6. **禁止在 userProfileSummary 中列出"学习能力""沟通能力""团队协作"等用户未明确声明的软技能。**
+
+## 📐 输入输出强绑定规则
+
+### userProfileSummary 生成规则：
+- 必须逐字引用用户提供的标签，不得添加任何用户未提供的词汇。
+- 格式："基于用户提供的技能：[精确引用]、项目经历：[精确引用]。当前年级：[年级]，专业：[专业]。"
+- ❌ 错误（用户技能只有 Python）："具备 Python 和 Java 能力，前端基础扎实，有良好的学习能力"
+- ✅ 正确（用户技能只有 Python）："基于用户提供的技能：Python。当前年级：大二，专业：计算机。"
+- ❌ 错误（用户无项目）："有一定的项目经验，参与过校内竞赛"
+- ✅ 正确（用户无项目）："基于用户提供的技能：Python。项目经历：未提供。"
+
+### userOwnedConditions 生成规则：
+- 只能列出用户输入中**明确存在**的技能/项目/实习
+- 如果用户什么都没填，此数组必须为空 []
+- 绝对禁止出现"具备良好的学习能力""有团队合作精神"等未经用户声明的软技能
+
+### skillGaps 中的 currentLevel 规则：
+- 如果用户技能列表中有该技能：currentLevel 可以写"已掌握"或"入门"
+- 如果用户技能列表中没有该技能：currentLevel 必须写"未掌握"，绝对禁止写"有一定了解"
+
+## 📋 用户画像（你唯一被允许使用的信息）
+
 - **年级**：'${userProfile.grade}'
 - **专业**：'${userProfile.major}'
 - **期望岗位**：'${userProfile.expectedPosition}'
-- **已掌握技能**：'${userProfile.skills.join(', ') || '（未提供）'}'
-- **项目经历**：
-${userProfile.projects.length > 0 ? userProfile.projects.map(p => `  - ${p.name}（${p.role}，${p.duration}）：使用${p.technologies.join('/')}，${p.description}`).join('\n') : '  - 无项目经历'}
-- **实习经历**：
-${userProfile.internships.length > 0 ? userProfile.internships.map(i => `  - ${i.company}（${i.position}，${i.duration}）：${i.description}`).join('\n') : '  - 无实习经历'}
-- **能力维度得分**（0-100）：
-  - 专业技能：${userProfile.dimensionScores.professional}
-  - 沟通协作：${userProfile.dimensionScores.communication}
-  - 领导力：${userProfile.dimensionScores.leadership}
-  - 创新思维：${userProfile.dimensionScores.innovation}
-  - 抗压能力：${userProfile.dimensionScores.resilience}
+- **已掌握技能（精确列表，绝对不可添加）**：${userSkillList}
+- **项目经历（精确列表，绝对不可添加）**：${userProjectList}
+- **实习经历（精确列表，绝对不可添加）**：${userInternList}
+- **能力维度得分**：专业${userProfile.dimensionScores.professional}、沟通${userProfile.dimensionScores.communication}、领导${userProfile.dimensionScores.leadership}、创新${userProfile.dimensionScores.innovation}、抗压${userProfile.dimensionScores.resilience}
 
-### 目标岗位（Target Job）
+## 📋 目标岗位
+
 - **岗位名称**：'${targetJob.title}'
 - **部门**：'${targetJob.department}'
-- **岗位描述**：'${targetJob.description}'
 - **技能要求**：'${targetJob.requirements.skills.join(', ')}'
 - **经验要求**：'${targetJob.requirements.experience}'
 - **学历要求**：'${targetJob.requirements.education}'
-- **软性素质要求**（0-100）：
-  - 沟通能力：${targetJob.softRequirements?.communication || 70}
-  - 抗压能力：${targetJob.softRequirements?.resilience || 70}
-  - 领导力：${targetJob.softRequirements?.leadership || 60}
-  - 创新思维：${targetJob.softRequirements?.innovation || 70}
+- **软性素质要求**：沟通${targetJob.softRequirements?.communication || 70}、抗压${targetJob.softRequirements?.resilience || 70}、领导${targetJob.softRequirements?.leadership || 60}、创新${targetJob.softRequirements?.innovation || 70}
 
-### 当前时间信息
 - **当前时间**：'${currentTime}'
 - **当前学期**：'${currentSemester}'
 
-${hasMinimalInput ? `## 特殊注意：用户输入不足
+${hasMinimalInput ? `
+## ⚠️ 特殊注意：用户输入严重不足
 用户只选择了目标岗位，未提供任何技能或项目经历。你必须：
-1. 将 isInsufficientInput 设为 true
-2. 在 insufficientHint 中提醒用户补充技能标签以获得精准分析
-3. 提供该岗位的通用基础建议即可，不要编造用户的技能或经历
+1. isInsufficientInput 设为 true
+2. userProfileSummary 中必须明确写"用户未提供任何技能标签和项目经历"
+3. userOwnedConditions 必须为空数组 []
+4. 提供该岗位的通用基础建议，不要编造用户的技能或经历
 ` : ''}
 
----
-
-## 你的任务
-
-### 第一步：差距分析（Gap Analysis）
-
-对比用户画像（A）与目标岗位（B），识别具体差距：
-
-1. **技能差距**：目标岗位要求的技能中，用户画像里列出的有哪些？缺失哪些？
-   - 只分析用户画像中明确提到的技能，不要假设用户掌握了其他技能
-2. **经历差距**：目标岗位要求的经验，用户是否具备？
-3. **能力差距**：目标岗位要求的软性素质，用户得分是否达标？
-
-### 第二步：时间轴规划生成（Timeline Generation）
-
-基于差距分析结果，结合用户当前学期，按时间顺序向后推演，生成成长地图。
-
-**时间节点规则**：
-1. 从"当前学期"开始，向后推演至"大四秋招"（或"研三秋招"）
-2. 每个学期/暑假/寒假作为一个时间节点
-3. 每个时间节点下挂载2-5个任务卡片
-
-**任务卡片规则**：
-- **行动标题**：简明扼要（如"参加互联网+大赛"、"学习SQL并考取证书"）
-- **关联差距**：明确告诉用户为什么要做这件事
-- **优先级**：P0（必须完成/红色）、P1（建议完成/橙色）、P2（可选完成/蓝色）
-
----
-
-## 输出 JSON 结构（严格遵守）
+## 输出 JSON 结构（严格遵守，不要添加任何额外字段）
 
 {
   "overallGapScore": 65,
-  "userProfileSummary": "基于用户提供的：[技能A]、[项目B]...",
-  "userOwnedConditions": ["用户实际已具备的条件1", "条件2"],
-  "dimensionGaps": [
-    {
-      "dimension": "professional",
-      "currentScore": 60,
-      "targetScore": 85,
-      "gap": 25,
-      "suggestions": ["建议1", "建议2"]
-    }
-  ],
-  "skillGaps": [
-    {
-      "skillName": "Python",
-      "currentLevel": "未掌握",
-      "targetLevel": "熟练",
-      "importance": "must",
-      "learningPath": "学习路径建议"
-    }
-  ],
-  "experienceGaps": [
-    {
-      "experienceType": "大厂实习",
-      "currentCount": 0,
-      "targetCount": 1,
-      "description": "目标岗位要求的经历描述",
-      "howToFill": "具体建议"
-    }
-  ],
+  "userProfileSummary": "基于用户提供的技能：[精确引用]。项目经历：[精确引用]。当前年级：[年级]，专业：[专业]。",
+  "userOwnedConditions": ["仅列出用户输入中明确存在的条件"],
+  "dimensionGaps": [{"dimension": "professional", "currentScore": 60, "targetScore": 85, "gap": 25, "suggestions": ["建议1"]}],
+  "skillGaps": [{"skillName": "Python", "currentLevel": "未掌握", "targetLevel": "熟练", "importance": "must", "learningPath": "学习路径"}],
+  "experienceGaps": [{"experienceType": "大厂实习", "currentCount": 0, "targetCount": 1, "description": "描述", "howToFill": "建议"}],
   "timeline": [
-    {
-      "id": "node_1",
-      "title": "大二下（当前）",
-      "date": "2024-03",
-      "semester": "大二下",
-      "isCurrent": true,
-      "isCompleted": false,
-      "tasks": [
-        {
-          "id": "task_1_1",
-          "title": "具体任务",
-          "description": "详细描述",
-          "relatedGap": "关联的差距说明",
-          "priority": "P0",
-          "status": "pending",
-          "estimatedTime": "6周",
-          "actionLink": {
-            "label": "去学习",
-            "href": "/chat?q=xxx",
-            "module": "chat"
-          }
-        }
-      ]
-    }
+    {"id": "node_1", "title": "大二下（当前）", "date": "2024-03", "semester": "大二下", "isCurrent": true, "isCompleted": false, "tasks": [{"id": "task_1_1", "title": "任务", "description": "描述", "relatedGap": "差距说明", "priority": "P0", "status": "pending", "estimatedTime": "6周"}]}
   ],
   "summary": "分析总结",
   "isInsufficientInput": false,
-  "insufficientHint": "可选，仅在输入不足时提供"
+  "insufficientHint": "可选"
+}
 
-## 开始分析
+**再次强调：你的输出中的每一个技能名、项目名、经历描述都必须能在上方"用户画像"中找到原文。找不到的内容就是幻觉，绝对禁止出现。**`;
+}
 
-请基于以上输入数据，输出完整的 JSON 结果。记住：只使用用户提供的数据，绝不编造。`;
+// ============================================
+// OpenAI API调用
+// ============================================
+
+/**
+ * 调用AI大模型（v3.0：零容忍防幻觉 + 输入输出强绑定 + 后校验）
+ */
+async function callOpenAI(prompt: string): Promise<{ rawContent: string; userProfileKeywords: string[] }> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const baseURL = process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || 'https://api.openai.com/v1';
+  const model = process.env.AI_MODEL || process.env.OPENAI_MODEL || 'deepseek-chat';
+  const apiUrl = `${baseURL}/chat/completions`;
+
+  if (!apiKey) {
+    console.warn('[Career Path] 未配置 OPENAI_API_KEY，使用演示模式');
+    return { rawContent: getDemoGapAnalysisResult(), userProfileKeywords: [] };
+  }
+
+  console.log(`[Career Path] 调用AI服务 (model=${model}, baseURL=${baseURL})...`);
+
+  const systemPrompt = `你是一个绝对严谨的数据分析师。你只能基于用户输入中明确列出的数据进行分析。
+严禁在输出中添加用户输入中不存在的任何技能、经历或标签。
+如果用户没填某项内容，写"未提供"即可，绝对禁止编造。
+输出必须是严格的 JSON 格式，不要包含任何 Markdown 代码块标记或解释性文字。
+temperature 设为 0.1，这意味着你应该完全基于事实，不做任何发散。`;
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 4000,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Career Path] API返回错误: ${response.status} ${errorText}`);
+      throw new Error(`AI API 调用失败 (${response.status}): ${errorText.slice(0, 500)}`);
+    }
+
+    const data = await response.json();
+    const rawContent = data.choices[0].message.content;
+    if (!rawContent) throw new Error('AI 返回了空内容');
+
+    return { rawContent, userProfileKeywords: [] };
+  } catch (error: any) {
+    console.error('[Career Path] AI调用异常:', error.message);
+    throw error;
+  }
 }
 
 // ============================================
@@ -245,83 +340,6 @@ const GapAnalysisResponseSchema = z.object({
   isInsufficientInput: z.boolean().default(false),
   insufficientHint: z.string().optional(),
 });
-
-// ============================================
-// OpenAI API调用
-// ============================================
-
-/**
- * 调用AI大模型（使用统一环境变量配置）
- * v2.0：强化防幻觉 + response_format JSON + Zod 校验
- */
-async function callOpenAI(prompt: string): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const baseURL = process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || 'https://api.openai.com/v1';
-  const model = process.env.AI_MODEL || process.env.OPENAI_MODEL || 'deepseek-chat';
-  const apiUrl = `${baseURL}/chat/completions`;
-  
-  if (!apiKey) {
-    console.warn('[Career Path] 未配置 OPENAI_API_KEY，使用演示模式');
-    return getDemoGapAnalysisResult();
-  }
-  
-  console.log(`[Career Path] 调用AI服务 (model=${model}, baseURL=${baseURL})...`);
-  
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: '你是一位资深的大学生职业规划顾问。你必须输出严格的JSON格式，不要添加任何Markdown代码块标记或解释性文字。你只能基于用户提供的输入数据进行分析，绝对不能凭空捏造用户不具备的技能或经历。'
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.2,
-        max_tokens: 4000,
-        response_format: { type: 'json_object' }
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Career Path] API返回错误: ${response.status} ${errorText}`);
-      throw new Error(`AI API 调用失败 (${response.status}): ${errorText.slice(0, 500)}`);
-    }
-    
-    const data = await response.json();
-    const rawContent = data.choices[0].message.content;
-    if (!rawContent) throw new Error('AI 返回了空内容');
-
-    // Zod 校验
-    try {
-      let parsed = JSON.parse(rawContent);
-      const result = GapAnalysisResponseSchema.safeParse(parsed);
-      if (result.success) {
-        return rawContent; // 校验通过，返回原始 JSON 字符串
-      }
-      // 校验失败但可以尝试修复部分字段
-      console.warn('[Career Path] Zod 校验部分不匹配，尝试容错解析:', JSON.stringify(result.error.issues.slice(0, 3)));
-      return rawContent; // 仍然返回，让后续解析层做兜底
-    } catch (parseErr) {
-      // 兼容 ```json ... ``` 代码块格式
-      const codeBlockMatch = rawContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-      if (codeBlockMatch) {
-        return codeBlockMatch[1];
-      }
-      throw new Error('AI 返回的内容无法解析为 JSON');
-    }
-  } catch (error: any) {
-    console.error('[Career Path] AI调用异常:', error.message);
-    throw error;
-  }
-}
 
 /**
  * 演示模式：返回模拟差距分析结果
@@ -506,43 +524,43 @@ export async function POST(req: Request) {
   try {
     const body: GenerateRequest = await req.json();
     const { userId, targetJobId, userProfileSnapshot, forceRegenerate } = body;
-    
+
     if (!userId || !targetJobId || !userProfileSnapshot) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    
-    // 1. 获取目标岗位数据（从job-matching.ts导入）
-    // TODO: 在实际项目中，应该从数据库或API获取岗位数据
+
+    // 1. 获取目标岗位数据
     const { JOB_POSITIONS } = await import('@/lib/job-matching');
     const targetJob = JOB_POSITIONS.find(job => job.id === targetJobId);
-    
+
     if (!targetJob) {
       return Response.json({ error: 'Target job not found' }, { status: 404 });
     }
-    
-    // 2. 构建AI Prompt
-    const currentTime = new Date().toISOString().slice(0, 7);  // "2024-03"
+
+    // 2. 提取用户关键词用于后校验
+    const userKeywords = extractUserKeywordsFromProfile(userProfileSnapshot);
+
+    // 3. 构建AI Prompt
+    const currentTime = new Date().toISOString().slice(0, 7);
     const currentSemester = calculateCurrentSemester(userProfileSnapshot.grade);
     const prompt = buildGapAnalysisPrompt(userProfileSnapshot, targetJob, currentTime, currentSemester);
-    
-    // 3. 调用AI生成差距分析结果
-    const aiResponse = await callOpenAI(prompt);
-    
-    // 4. 解析AI响应（JSON格式 + Zod 校验）
+
+    // 4. 调用AI生成差距分析结果
+    const { rawContent: aiResponse } = await callOpenAI(prompt);
+
+    // 5. 解析AI响应（JSON格式）
     let gapAnalysisResult: any;
     try {
       gapAnalysisResult = JSON.parse(aiResponse);
     } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', parseError);
-      // 回退到演示数据
+      console.error('[Career Path] Failed to parse AI response as JSON:', parseError);
       gapAnalysisResult = JSON.parse(getDemoGapAnalysisResult());
     }
 
-    // 5. Zod 格式校验
+    // 6. Zod 格式校验
     const zodResult = GapAnalysisResponseSchema.safeParse(gapAnalysisResult);
     if (!zodResult.success) {
       console.warn('[Career Path] Zod 校验失败，使用兜底默认值:', JSON.stringify(zodResult.error.issues.slice(0, 3)));
-      // 保留 AI 返回的核心字段，缺失字段使用默认值
       gapAnalysisResult = {
         ...gapAnalysisResult,
         overallGapScore: gapAnalysisResult.overallGapScore || 65,
@@ -558,34 +576,55 @@ export async function POST(req: Request) {
     } else {
       gapAnalysisResult = zodResult.data;
     }
-    
-    // 6. 构建完整的GapAnalysisResult对象
+
+    // 7. 后校验：对比 AI 输出与用户原始输入
+    const { text: sanitizedSummary, hallucinated: hallucinatedSummary } = sanitizeProfileSummary(
+      gapAnalysisResult.userProfileSummary, userKeywords
+    );
+    const { items: sanitizedConditions, removed: removedConditions } = sanitizeConditions(
+      gapAnalysisResult.userOwnedConditions, userKeywords
+    );
+
+    if (hallucinatedSummary.length > 0 || removedConditions.length > 0) {
+      console.warn(`[Career Path-防幻觉] 检测到幻觉内容已截断！幻觉技能: [${hallucinatedSummary.join(', ')}], 移除条件: [${removedConditions.join(', ')}]`);
+    }
+
+    // 8. 校验 skillGaps 中的 currentLevel
+    const sanitizedSkillGaps = gapAnalysisResult.skillGaps.map(sg => {
+      if (userKeywords.some(k => sg.skillName.toLowerCase() === k.toLowerCase())) {
+        return sg; // 用户有此技能，保留 AI 判断的 currentLevel
+      }
+      // 用户没有此技能，强制 currentLevel 为"未掌握"
+      if (sg.currentLevel !== '未掌握') {
+        console.warn(`[Career Path-防幻觉] 技能 ${sg.skillName} 用户未提供，强制 currentLevel 为"未掌握"（原值: ${sg.currentLevel}）`);
+        return { ...sg, currentLevel: '未掌握' };
+      }
+      return sg;
+    });
+
+    // 9. 构建最终结果（使用校验后的数据）
     const result: GapAnalysisResult = {
       userId: userId,
       targetJobId: targetJobId,
       targetJobTitle: targetJob.title,
       analyzedAt: new Date().toISOString(),
       overallGapScore: gapAnalysisResult.overallGapScore,
-      userProfileSummary: gapAnalysisResult.userProfileSummary,
-      userOwnedConditions: gapAnalysisResult.userOwnedConditions,
+      userProfileSummary: sanitizedSummary,
+      userOwnedConditions: sanitizedConditions,
       dimensionGaps: gapAnalysisResult.dimensionGaps,
-      skillGaps: gapAnalysisResult.skillGaps,
+      skillGaps: sanitizedSkillGaps,
       experienceGaps: gapAnalysisResult.experienceGaps,
       timeline: gapAnalysisResult.timeline,
       summary: gapAnalysisResult.summary,
       isInsufficientInput: gapAnalysisResult.isInsufficientInput,
       insufficientHint: gapAnalysisResult.insufficientHint,
     };
-    
-    // 6. 保存到数据库（TODO: 实际项目中应该保存到数据库）
-    // await saveGapAnalysisResult(result);
-    
-    // 7. 返回结果
+
     return Response.json({
       success: true,
       data: result
     });
-    
+
   } catch (error) {
     console.error('Generate career path error:', error);
     return Response.json(
