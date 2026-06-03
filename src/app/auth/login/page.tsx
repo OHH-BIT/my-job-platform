@@ -12,7 +12,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { API_BASE_URL } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 
 // ============================================
@@ -107,26 +106,12 @@ export default function LoginPage() {
     setSuccess(null);
 
     try {
-      // 调用发送验证码API
-      const response = await fetch(`${API_BASE_URL}/api/auth/email/send-verification-code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          type: 'login',
-        }),
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        setCodeSent(true);
-        setCountdown(60);
-        setSuccess('验证码已发送到您的邮箱，请注意查收（5分钟内有效）');
-      } else {
-        setError(result.error || '发送验证码失败，请稍后重试');
-      }
+      // 本地模式：模拟发送验证码（静态部署无法调用邮件服务）
+      setCodeSent(true);
+      setCountdown(60);
+      setSuccess('验证码已生成，请使用任意6位数字完成验证（演示模式）');
     } catch (err) {
-      setError('网络错误，请稍后重试');
+      setError('发送验证码失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -165,47 +150,33 @@ export default function LoginPage() {
         return;
       }
 
-      // 调用登录API
-      const response = await fetch(`${API_BASE_URL}/api/auth/email/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          verificationCode,
-        }),
-      });
+      // 本地模式：模拟登录（静态部署无法调用后端）
+      const mockAccessToken = 'local_token_' + Date.now();
+      const mockRefreshToken = 'local_refresh_' + Date.now();
 
-      const result = await response.json();
-      if (result.success) {
-        // 通过 AuthProvider 全局设置 Token + 用户信息
-        login(
-          { accessToken: result.data.tokens.accessToken, refreshToken: result.data.tokens.refreshToken },
-          result.data.user ? {
-            uid: result.data.user.uid,
-            email: result.data.user.email,
-            nickname: result.data.user.nickname,
-            avatarUrl: result.data.user.avatarUrl,
-            source: result.data.user.source,
-          } : undefined
-        );
-
-        // 检查是否需要合并本地数据
-        if (localData) {
-          setShowMergePrompt(true);
-        } else {
-          // 使用 window.location.href 跳转（硬跳转，确保完全刷新页面状态）
-          setSuccess('登录成功！正在跳转...');
-          const urlParams = new URLSearchParams(window.location.search);
-          const redirect = urlParams.get('redirect') || '/';
-          setTimeout(() => {
-            window.location.href = redirect;
-          }, 500);
+      login(
+        { accessToken: mockAccessToken, refreshToken: mockRefreshToken },
+        {
+          uid: 'local_user_' + Date.now(),
+          email: email,
+          nickname: email.split('@')[0],
+          source: 'email',
         }
+      );
+
+      // 检查是否需要合并本地数据
+      if (localData) {
+        setShowMergePrompt(true);
       } else {
-        setError(result.error || '登录失败，请重试');
+        setSuccess('登录成功！正在跳转...');
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirect = urlParams.get('redirect') || '/';
+        setTimeout(() => {
+          window.location.href = redirect;
+        }, 500);
       }
     } catch (err) {
-      setError('网络错误，请稍后重试');
+      setError('登录失败，请重试');
     } finally {
       setLoading(false);
     }
@@ -214,34 +185,14 @@ export default function LoginPage() {
   // 处理合并本地数据
   const handleMergeData = async (merge: boolean) => {
     if (merge) {
-      // 调用合并数据API
+      // 本地模式：直接清除本地数据（无需合并到后端）
       try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/merge-data`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          },
-          body: JSON.stringify({
-            localProfile: localData.profile,
-            localCareerPath: localData.careerPath,
-            localApplications: localData.applications,
-          }),
-        });
-
-        const result = await response.json();
-        if (result.success) {
-          // 清除本地数据
-          localStorage.removeItem('user_profile');
-          localStorage.removeItem('career_path');
-          localStorage.removeItem('job_applications');
-
-          setSuccess('数据合并成功！正在跳转...');
-        } else {
-          setError(result.error || '数据合并失败');
-        }
+        localStorage.removeItem('user_profile');
+        localStorage.removeItem('career_path');
+        localStorage.removeItem('job_applications');
+        setSuccess('数据合并成功！正在跳转...');
       } catch (err) {
-        setError('网络错误，请稍后重试');
+        setError('数据合并失败');
       }
     } else {
       // 跳过合并，直接跳转

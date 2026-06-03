@@ -4,7 +4,6 @@
 // 功能：包含标题、内容、图片上传、标签输入，支持发布新帖子
 
 import { useState, useRef } from "react";
-import { API_BASE_URL } from "@/lib/api-client";
 import { X, ImagePlus, Tag, Send, Check } from "lucide-react";
 
 // ============================================
@@ -98,40 +97,43 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }: Crea
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("title", title);
-      formData.append("content", content);
-      formData.append("tags", tags);
-      formData.append("isAnonymous", String(isAnonymous));
+      // 本地发帖（静态部署模式）
+      const newPost: PostData = {
+        id: `local_${Date.now()}`,
+        title,
+        content,
+        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+        images: [],
+        mentor: {
+          anonymousLabel: isAnonymous ? "匿名用户" : "我",
+          currentCompany: "",
+          currentPosition: "",
+          avatar: "",
+        },
+        author: {
+          id: "local_user",
+          name: isAnonymous ? "匿名用户" : "我",
+          avatar: "",
+        },
+        likes: 0,
+        comments: 0,
+        createdAt: new Date().toISOString(),
+        sharedAt: new Date().toISOString(),
+        isLiked: false,
+        isAnonymous,
+      };
 
-      images.forEach((image) => {
-        formData.append("images", image);
-      });
+      // 清空表单
+      setTitle("");
+      setContent("");
+      setTags("");
+      setImages([]);
 
-      const response = await fetch(`${API_BASE_URL}/api/mentor-sharing/create`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        const newPost = result.data.post as PostData;
-
-        // 清空表单
-        setTitle("");
-        setContent("");
-        setTags("");
-        setImages([]);
-
-        // 将完整帖子对象传给父组件做乐观更新
-        onPostCreated(newPost);
-        onClose();
-      } else {
-        setError(result.error || "发布失败");
-      }
+      // 将完整帖子对象传给父组件做乐观更新
+      onPostCreated(newPost);
+      onClose();
     } catch (err: any) {
-      setError(err.message || "网络错误，请重试");
+      setError(err.message || "发布失败，请重试");
     } finally {
       setLoading(false);
     }

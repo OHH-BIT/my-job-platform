@@ -8,8 +8,8 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { API_BASE_URL } from "@/lib/api-client";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { aiMockPosts } from "@/lib/mentor-sharing-store";
 import {
   Heart,
   MessageCircle,
@@ -596,35 +596,50 @@ export default function MentorSharingPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // 加载帖子列表
-  const loadSharings = useCallback(async () => {
+  // 加载帖子列表（本地数据，无需 API）
+  const allPosts = useMemo(() => aiMockPosts, []);
+
+  const loadSharings = useCallback(() => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
+      // 本地筛选
+      let filtered = [...allPosts];
 
-      const params = new URLSearchParams();
-      if (filters.keyword) params.append("keyword", filters.keyword);
-      if (filters.sortBy) params.append("sortBy", filters.sortBy);
-      params.append("page", page.toString());
-      params.append("pageSize", pageSize.toString());
-
-      const response = await fetch(`${API_BASE_URL}/api/mentor-sharing/list?${params.toString()}`);
-      const result = await response.json();
-
-      if (result.success) {
-        const posts = result.data?.posts || [];
-        const totalCount = result.data?.pagination?.total || 0;
-        setSharings(posts);
-        setTotal(totalCount);
-      } else {
-        setError(result.error || "获取分享列表失败");
+      // 关键词搜索
+      if (filters.keyword) {
+        const q = filters.keyword.toLowerCase();
+        filtered = filtered.filter(
+          (p) =>
+            p.content.toLowerCase().includes(q) ||
+            p.mentor?.currentCompany?.toLowerCase().includes(q) ||
+            p.mentor?.currentPosition?.toLowerCase().includes(q) ||
+            p.topicTags?.some((t) => t.toLowerCase().includes(q))
+        );
       }
+
+      // 排序
+      if (filters.sortBy === "popular") {
+        filtered.sort((a, b) => b.likes - a.likes);
+      } else if (filters.sortBy === "recommendation") {
+        filtered.sort((a, b) => (b.aiAnalysis?.recommendationScore || 0) - (a.aiAnalysis?.recommendationScore || 0));
+      }
+      // "latest" 保持原序
+
+      // 分页
+      const totalCount = filtered.length;
+      const start = (page - 1) * pageSize;
+      const paged = filtered.slice(start, start + pageSize);
+
+      setSharings(paged);
+      setTotal(totalCount);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "网络错误");
+      setError(err instanceof Error ? err.message : "加载失败");
     } finally {
       setLoading(false);
     }
-  }, [filters, page, pageSize]);
+  }, [filters, page, pageSize, allPosts]);
 
   useEffect(() => {
     loadSharings();

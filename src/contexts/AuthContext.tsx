@@ -11,7 +11,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { setAuthErrorHandler, hasValidTokenFormat, clearTokens, setTokens, getUserIdFromToken, getAccessToken, getRefreshToken, API_BASE_URL } from '@/lib/api-client';
+import { setAuthErrorHandler, hasValidTokenFormat, clearTokens, getUserIdFromToken, getAccessToken, setTokens } from '@/lib/api-client';
 
 // ============================================
 // 类型定义
@@ -59,42 +59,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (hasValidTokenFormat()) {
         const uid = getUserIdFromToken();
         if (uid) {
-          // 同步 Cookie（确保 Edge Middleware 能读到）
           const at = getAccessToken();
-          const rt = getRefreshToken();
           if (at) document.cookie = `access_token=${at}; path=/; max-age=${15 * 60}; SameSite=Lax`;
-          if (rt) document.cookie = `refresh_token=${rt}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
           setUser({ uid });
           setIsInitializing(false);
           return;
         }
       }
 
-      // 2. Access Token 不存在或已过期，尝试用 Refresh Token 刷新
-      const refreshToken = getRefreshToken();
-      if (refreshToken) {
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken }),
-          });
-          const result = await response.json();
-          if (result.success && result.data?.tokens) {
-            setTokens(result.data.tokens);
-            const uid = getUserIdFromToken();
-            if (uid) {
-              setUser({ uid });
-              setIsInitializing(false);
-              return;
-            }
-          }
-        } catch (err) {
-          console.error('[Auth] Token 刷新失败:', err);
-        }
-      }
-
-      // 3. 彻底无有效凭证
+      // Access Token 不存在或已过期，清除凭证
       clearTokens();
       setUser(null);
       setIsInitializing(false);

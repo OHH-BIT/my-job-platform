@@ -12,10 +12,12 @@ import {
   Search,
   RotateCcw,
 } from "lucide-react";
-import { API_BASE_URL } from "@/lib/api-client";
 import RadarChart from "./RadarChart";
 import GapAnalysisCards from "./GapAnalysisCards";
 import MatchResultCards from "./MatchResultCards";
+import { SKILL_TAGS, PROJECT_TAGS, POSITION_TAGS } from "@/lib/tag-database";
+import { JOB_CAPABILITY_MODELS } from "@/lib/job-capability-models";
+import { calculateTagMatches, TagMatchResult } from "@/lib/tag-matching";
 
 // ============================================
 // 类型定义
@@ -166,24 +168,21 @@ export default function JobMatchPage() {
   // 加载标签数据
   // ============================================
 
-  const loadTags = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/job-match/analyze`);
-      const json = await res.json();
-      if (json.success) {
-        setSkillTags(json.data.skillTags);
-        setProjectTags(json.data.projectTags);
-        setPositionTags(json.data.positionTags);
-        setJobModels(json.data.jobModels);
-        setDataLoaded(true);
-      }
-    } catch (err) {
-      console.error("加载标签失败:", err);
-    }
-  };
-
-  // 初始加载
-  useMemo(() => { loadTags(); }, []);
+  // 加载标签数据（本地导入，无需 API）
+  useMemo(() => {
+    setSkillTags(SKILL_TAGS);
+    setProjectTags(PROJECT_TAGS);
+    setPositionTags(POSITION_TAGS);
+    setJobModels(JOB_CAPABILITY_MODELS.map(m => ({
+      positionId: m.positionId,
+      title: m.title,
+      category: m.category,
+      description: m.description,
+      typicalCompanies: m.typicalCompanies,
+      salaryRange: m.salaryRange,
+    })));
+    setDataLoaded(true);
+  }, []);
 
   // ============================================
   // 标签选择操作
@@ -226,24 +225,14 @@ export default function JobMatchPage() {
   // 发起匹配分析
   // ============================================
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = () => {
     if (selectedTags.size === 0) return;
     setIsAnalyzing(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/job-match/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userTagIds: Array.from(selectedTags) }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setMatchResults(json.data.matchResults);
-        if (json.data.matchResults.length > 0) {
-          setSelectedJob(json.data.matchResults[0]);
-        }
-      }
-    } catch (err) {
-      console.error("匹配分析失败:", err);
+    // 本地匹配计算，无需 API
+    const results = calculateTagMatches(Array.from(selectedTags));
+    setMatchResults(results);
+    if (results.length > 0) {
+      setSelectedJob(results[0]);
     }
     setIsAnalyzing(false);
   };
