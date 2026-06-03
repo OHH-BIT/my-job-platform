@@ -1,10 +1,74 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { API_BASE_URL } from "@/lib/api-client";
+import { API_BASE_URL, getAccessToken } from "@/lib/api-client";
 import { motion, AnimatePresence } from "framer-motion";
 import { TimelineNode, TaskCard, TaskPriority, TaskStatus, GapAnalysisResult } from "@/types/career-path";
 import { PRIORITY_CONFIG, STATUS_CONFIG } from "@/types/career-path";
+
+/**
+ * 从 localStorage 读取用户已保存的数据（技能标签、年级、期望岗位等）
+ */
+function getSavedUserData(): {
+  skills: string[];
+  grade: string;
+  major: string;
+  expectedPosition: string;
+  projects: any[];
+  internships: any[];
+  dimensionScores: { professional: number; communication: number; leadership: number; innovation: number; resilience: number };
+} {
+  if (typeof window === 'undefined') {
+    return {
+      skills: [], grade: '', major: '', expectedPosition: '',
+      projects: [], internships: [],
+      dimensionScores: { professional: 55, communication: 55, leadership: 45, innovation: 55, resilience: 55 },
+    };
+  }
+  try {
+    const profileStr = localStorage.getItem('user_profile');
+    const profileData = profileStr ? JSON.parse(profileStr) : {};
+    const tagsStr = localStorage.getItem('selected_tags');
+    const tagsData = tagsStr ? JSON.parse(tagsStr) : [];
+
+    // 提取技能标签名
+    const skills: string[] = Array.isArray(tagsData)
+      ? tagsData.map((t: any) => t.name || t.label || t).filter(Boolean)
+      : [];
+
+    return {
+      skills,
+      grade: profileData.grade || profileData.basicInfo?.grade || '',
+      major: profileData.major || profileData.basicInfo?.major || '',
+      expectedPosition: profileData.expectedPosition || profileData.basicInfo?.expectedPosition || '',
+      projects: profileData.projects || [],
+      internships: profileData.internships || [],
+      dimensionScores: profileData.dimensionScores || profileData.basicInfo?.dimensionScores || {
+        professional: 55, communication: 55, leadership: 45, innovation: 55, resilience: 55,
+      },
+    };
+  } catch {
+    return {
+      skills: [], grade: '', major: '', expectedPosition: '',
+      projects: [], internships: [],
+      dimensionScores: { professional: 55, communication: 55, leadership: 45, innovation: 55, resilience: 55 },
+    };
+  }
+}
+
+/**
+ * 从 JWT token 解析用户 ID
+ */
+function getUserIdFromToken(): string {
+  const token = getAccessToken();
+  if (!token) return 'anonymous';
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.uid || 'anonymous';
+  } catch {
+    return 'anonymous';
+  }
+}
 
 // ============================================
 // 主组件
@@ -15,11 +79,48 @@ export default function CareerPathPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<TimelineNode | null>(null);
+  const [inputMode, setInputMode] = useState<'form' | 'result'>('form');
+  const [formData, setFormData] = useState({
+    grade: '',
+    major: '',
+    expectedPosition: '',
+    skillsText: '',
+    targetJobId: 'job_frontend_senior',
+  });
 
-  // 初始化：检查用户画像与目标岗位，然后生成成长路径
+  // 初始化表单：从 localStorage 读取已保存的数据
   useEffect(() => {
-    generateCareerPath();
+    const saved = getSavedUserData();
+    setFormData(prev => ({
+      ...prev,
+      grade: saved.grade || prev.grade,
+      major: saved.major || prev.major,
+      expectedPosition: saved.expectedPosition || prev.expectedPosition,
+      skillsText: saved.skills.length > 0 ? saved.skills.join('\n') : prev.skillsText,
+    }));
+
+    // 如果已有完整数据，自动填入表单
+    if (saved.grade && saved.skills.length > 0 && saved.expectedPosition) {
+      setInputMode('form');
+    }
   }, []);
+
+  // 岗位选项
+  const jobOptions = [
+    { id: 'job_frontend_senior', title: '高级前端开发工程师' },
+    { id: 'job_frontend_mid', title: '前端开发工程师' },
+    { id: 'job_backend_senior', title: '高级后端开发工程师' },
+    { id: 'job_fullstack_senior', title: '高级全栈工程师' },
+    { id: 'job_java_backend', title: 'Java后端开发工程师' },
+    { id: 'job_ai_researcher', title: 'AI算法研究员' },
+    { id: 'job_ml_engineer', title: '机器学习工程师' },
+    { id: 'job_product_manager', title: '产品经理' },
+    { id: 'job_data_analyst', title: '数据分析师' },
+    { id: 'job_ui_designer', title: 'UI/UX设计师' },
+    { id: 'job_product_operations', title: '产品运营' },
+    { id: 'job_frontend_intern', title: '前端开发实习生' },
+    { id: 'job_backend_intern', title: '后端开发实习生' },
+  ];
 
   /**
    * 生成成长路径（调用后端API）
@@ -29,43 +130,38 @@ export default function CareerPathPage() {
     setError(null);
 
     try {
-      // TODO: 从全局状态获取用户画像和目标岗位ID
-      const userId = "user_123";  // 模拟用户ID
-      const targetJobId = "backend";  // 模拟目标岗位ID（后端开发工程师）
+      const userId = getUserIdFromToken();
+      const targetJobId = formData.targetJobId;
+      const selectedJob = jobOptions.find(j => j.id === targetJobId);
+      const targetJobTitle = selectedJob?.title || formData.expectedPosition || '未选择';
+
+      // 从表单数据构建 userProfileSnapshot
+      const skills = formData.skillsText
+        .split(/[\n,;，；、•·\-\*]+/)
+        .map(s => s.trim()).filter(Boolean);
+
+      const userProfileSnapshot = {
+        grade: formData.grade || '未填写',
+        major: formData.major || '未填写',
+        expectedPosition: targetJobTitle,
+        skills,
+        projects: [],
+        internships: [],
+        dimensionScores: { professional: 55, communication: 55, leadership: 45, innovation: 55, resilience: 55 },
+      };
 
       // 调用后端API
       const response = await fetch(`${API_BASE_URL}/api/career-path/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(getAccessToken() ? { 'Authorization': `Bearer ${getAccessToken()}` } : {}),
         },
         body: JSON.stringify({
-          userId: userId,
-          targetJobId: targetJobId,
-          userProfileSnapshot: {
-            grade: "大二",
-            major: "计算机科学与技术",
-            expectedPosition: "后端开发工程师",
-            skills: ["Java", "数据结构", "算法"],
-            projects: [
-              {
-                name: "学生管理系统",
-                role: "后端开发",
-                duration: "2023.09-2023.12",
-                technologies: ["Java", "Spring Boot", "MySQL"],
-                description: "使用Spring Boot开发后台管理系统，实现用户管理和权限控制"
-              },
-            ],
-            internships: [],
-            dimensionScores: {
-              professional: 60,
-              communication: 70,
-              leadership: 65,
-              innovation: 68,
-              resilience: 72,
-            },
-          },
-          forceRegenerate: false
+          userId,
+          targetJobId,
+          userProfileSnapshot,
+          forceRegenerate: true,
         }),
       });
 
@@ -77,9 +173,10 @@ export default function CareerPathPage() {
 
       if (data.success && data.data) {
         setGapResult(data.data);
-        setSelectedNode(data.data.timeline[0] || null);  // 默认选中第一个节点
+        setSelectedNode(data.data.timeline[0] || null);
+        setInputMode('result');
       } else {
-        throw new Error(data.error || "Failed to generate career path");
+        throw new Error(data.error || "生成成长路径失败");
       }
 
     } catch (err) {
@@ -135,20 +232,88 @@ export default function CareerPathPage() {
     );
   }
 
-  // 错误
-  if (error || !gapResult) {
+  // 错误或无数据时，显示表单
+  if (error || !gapResult || inputMode === 'form') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold mb-2">生成失败</h2>
-          <p className="text-text-secondary mb-6">{error || "未知错误"}</p>
-          <button
-            onClick={generateCareerPath}
-            className="px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-colors"
-          >
-            重新生成
-          </button>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8 max-w-2xl">
+          <h1 className="text-2xl font-bold mb-2">动态成长路径规划</h1>
+          <p className="text-text-secondary mb-6">填写你的年级、技能和目标岗位，AI将为你生成个性化成长路径。</p>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {/* 年级 */}
+            <div>
+              <label className="block text-sm font-medium mb-1">当前年级 *</label>
+              <select
+                value={formData.grade}
+                onChange={e => setFormData(p => ({ ...p, grade: e.target.value }))}
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-card-bg"
+              >
+                <option value="">请选择年级</option>
+                <option value="大一">大一</option>
+                <option value="大二">大二</option>
+                <option value="大三">大三</option>
+                <option value="大四">大四</option>
+                <option value="硕士在读一年级">硕士在读一年级</option>
+                <option value="硕士在读二年级">硕士在读二年级</option>
+                <option value="博士在读">博士在读</option>
+              </select>
+            </div>
+
+            {/* 专业 */}
+            <div>
+              <label className="block text-sm font-medium mb-1">专业</label>
+              <input
+                type="text"
+                value={formData.major}
+                onChange={e => setFormData(p => ({ ...p, major: e.target.value }))}
+                placeholder="如：计算机科学与技术"
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-card-bg"
+              />
+            </div>
+
+            {/* 目标岗位 */}
+            <div>
+              <label className="block text-sm font-medium mb-1">目标岗位 *</label>
+              <select
+                value={formData.targetJobId}
+                onChange={e => setFormData(p => ({ ...p, targetJobId: e.target.value }))}
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-card-bg"
+              >
+                <option value="">请选择目标岗位</option>
+                {jobOptions.map(j => (
+                  <option key={j.id} value={j.id}>{j.title}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 当前技能 */}
+            <div>
+              <label className="block text-sm font-medium mb-1">当前已掌握的技能 *</label>
+              <textarea
+                value={formData.skillsText}
+                onChange={e => setFormData(p => ({ ...p, skillsText: e.target.value }))}
+                placeholder="每行一个技能，如：&#10;JavaScript&#10;React&#10;CSS&#10;数据结构"
+                rows={6}
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-card-bg resize-none"
+              />
+            </div>
+
+            {/* 生成按钮 */}
+            <button
+              onClick={generateCareerPath}
+              disabled={loading || !formData.grade || !formData.targetJobId}
+              className="w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? '生成中...' : '生成成长路径'}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -168,10 +333,10 @@ export default function CareerPathPage() {
               </p>
             </div>
             <button
-              onClick={generateCareerPath}
+              onClick={() => { setInputMode('form'); setGapResult(null); }}
               className="px-4 py-2 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors text-sm"
             >
-              🔄 重新生成
+              重新填写
             </button>
           </div>
         </div>

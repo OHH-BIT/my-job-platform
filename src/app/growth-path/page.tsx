@@ -5,9 +5,106 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AbilityRadarChart from '@/components/AbilityRadarChart';
 import GrowthPathTimeline from '@/components/GrowthPathTimeline';
+
+// ============================================
+// AI 分析报告子组件（结构化渲染 markdown）
+// ============================================
+
+interface AnalysisSection {
+  title: string;
+  items: string[];
+  isWarning?: boolean;
+}
+
+function AnalysisReport({ content }: { content: string }) {
+  const sections = useMemo(() => {
+    const lines = content.split('\n').filter(l => l.trim());
+    const result: AnalysisSection[] = [];
+    let current: AnalysisSection | null = null;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // ## 标题
+      const h2Match = trimmed.match(/^##\s+(.+)/);
+      if (h2Match) {
+        if (current) result.push(current);
+        current = { title: h2Match[1], items: [] };
+        continue;
+      }
+
+      // ### 子标题
+      const h3Match = trimmed.match(/^###\s+(.+)/);
+      if (h3Match && current) {
+        current.items.push(`__PHASE__${h3Match[1]}`);
+        continue;
+      }
+
+      // > 引用/警告
+      const quoteMatch = trimmed.match(/^>\s*(.+)/);
+      if (quoteMatch) {
+        if (current) {
+          current.items.push(`__WARN__${quoteMatch[1]}`);
+        }
+        continue;
+      }
+
+      // 普通文本（去除 ** 标记）
+      if (current) {
+        const cleanText = trimmed.replace(/\*\*/g, '').replace(/^[-*]\s*/, '');
+        if (cleanText) {
+          current.items.push(cleanText);
+        }
+      }
+    }
+
+    if (current) result.push(current);
+    return result;
+  }, [content]);
+
+  if (sections.length === 0) return null;
+
+  return (
+    <div className="space-y-5">
+      {sections.map((section, si) => (
+        <div key={si}>
+          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{section.title}</h3>
+          <div className="space-y-1">
+            {section.items.map((item, ii) => {
+              // 阶段标题
+              if (item.startsWith('__PHASE__')) {
+                const title = item.slice(8);
+                return (
+                  <div key={ii} className="mt-3 mb-1 text-sm font-semibold text-gray-800">{title}</div>
+                );
+              }
+              // 警告
+              if (item.startsWith('__WARN__')) {
+                const text = item.slice(8);
+                return (
+                  <div key={ii} className="text-sm text-amber-600 bg-amber-50 rounded-lg px-3 py-2">{text}</div>
+                );
+              }
+              // 普通条目
+              const cleaned = item.replace(/^[-*]\s+/, '');
+              // 判断是否是差距条目（含括号内的数值对比）
+              const isGap = cleaned.includes('当前') && cleaned.includes('分');
+              return (
+                <div key={ii} className={`text-sm flex items-start gap-2 leading-relaxed ${isGap ? 'text-red-600' : 'text-gray-600'}`}>
+                  <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${isGap ? 'bg-red-400' : 'bg-primary/50'}`} />
+                  <span>{cleaned}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 import { GrowthPath, PathStatus, SkillGap } from '@/data/growth-path-models';
 import { api } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -727,18 +824,12 @@ export default function GrowthPathPage() {
 
                 {/* --- 3e. AI 差距分析总结 --- */}
                 {(growthPath as any).aiAnalysis && (
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-lg border border-blue-100 p-6 md:p-8">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white">
-                        {Icons.brain}
-                      </div>
-                      <h2 className="text-xl font-bold text-gray-900">AI 智能分析报告</h2>
+                  <div className="rounded-2xl border border-border bg-card-bg p-6">
+                    <div className="flex items-center gap-2 mb-5">
+                      <span className="text-primary">{Icons.brain}</span>
+                      <h2 className="text-lg font-bold">AI 智能分析报告</h2>
                     </div>
-                    <div className="prose prose-indigo max-w-none">
-                      <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-                        {(growthPath as any).aiAnalysis}
-                      </p>
-                    </div>
+                    <AnalysisReport content={(growthPath as any).aiAnalysis} />
                   </div>
                 )}
 

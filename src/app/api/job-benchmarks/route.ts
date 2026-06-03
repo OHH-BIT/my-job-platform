@@ -356,8 +356,21 @@ const jobBenchmarks: JobBenchmark[] = [
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
     const title = searchParams.get('title');
     const category = searchParams.get('category');
+
+    // 按 id 精确匹配（优先级最高）
+    if (id) {
+      const matchedJob = jobBenchmarks.find(job => job.id === id);
+      if (matchedJob) {
+        return NextResponse.json({ success: true, data: [matchedJob], total: 1 });
+      }
+      return NextResponse.json(
+        { success: false, error: `未找到 id 为"${id}"的岗位` },
+        { status: 404 }
+      );
+    }
 
     // 按标题模糊匹配
     if (title) {

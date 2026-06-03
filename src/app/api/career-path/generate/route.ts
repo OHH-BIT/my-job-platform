@@ -57,8 +57,63 @@ function buildSkillGapsFromInput(
   targetJob: JobPosition
 ): Array<{ skillName: string; currentLevel: string; targetLevel: string; importance: string; learningPath: string }> {
   const userSkillSet = new Set(profile.skills.map(s => s.toLowerCase()));
+
+  // 别名映射：支持常见缩写/别名匹配
+  const aliases: Record<string, string[]> = {
+    'javascript': ['js', 'javascript', 'es6'],
+    'typescript': ['ts', 'typescript'],
+    'react': ['react', 'reactjs', 'react.js', 'react hooks'],
+    'vue': ['vue', 'vuejs', 'vue.js', 'vue3'],
+    'node.js': ['node', 'nodejs', 'node.js'],
+    'python': ['python', 'py'],
+    'java': ['java', 'jdk', 'jvm'],
+    'css': ['css', 'css3', 'scss', 'sass', 'less'],
+    'html': ['html', 'html5'],
+    'go': ['go', 'golang'],
+    'sql': ['sql', 'mysql', 'postgresql', 'postgres'],
+    'mysql': ['mysql', 'mariadb'],
+    'redis': ['redis'],
+    'docker': ['docker', 'container'],
+    'kubernetes': ['k8s', 'kubernetes'],
+    'git': ['git', 'github', 'gitlab'],
+    'webpack': ['webpack'],
+    'vite': ['vite'],
+    'next.js': ['next.js', 'nextjs', 'next'],
+    'spring boot': ['springboot', 'spring boot', 'spring'],
+    'tensorflow': ['tensorflow', 'tf'],
+    'pytorch': ['pytorch'],
+    'figma': ['figma', 'sketch', 'xd'],
+    '数据分析': ['数据分析', 'data analysis'],
+    '数据可视化': ['数据可视化', 'echarts', 'tableau', 'power bi'],
+    '机器学习': ['机器学习', 'ml', 'machine learning'],
+    '深度学习': ['深度学习', 'dl', 'deep learning'],
+    '大数据': ['大数据', 'spark', 'hadoop'],
+  };
+
+  // 为用户每个技能构建扩展匹配集
+  const userSkillExpanded = new Set<string>();
+  for (const skill of profile.skills) {
+    const lower = skill.toLowerCase();
+    userSkillExpanded.add(lower);
+    // 查找该技能的所有别名
+    for (const [, aliasList] of Object.entries(aliases)) {
+      if (aliasList.some(a => a.toLowerCase() === lower)) {
+        aliasList.forEach(a => userSkillExpanded.add(a.toLowerCase()));
+        break;
+      }
+    }
+  }
+
   return targetJob.requirements.skills
-    .filter(skill => !userSkillSet.has(skill.toLowerCase()))
+    .filter(skill => {
+      const lower = skill.toLowerCase();
+      // 精确匹配
+      if (userSkillExpanded.has(lower)) return false;
+      // 别名匹配
+      const skillAliases = aliases[lower] || [lower];
+      if (skillAliases.some(a => userSkillExpanded.has(a.toLowerCase()))) return false;
+      return true;
+    })
     .map(skill => ({
       skillName: skill,
       currentLevel: '未掌握',

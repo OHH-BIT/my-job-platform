@@ -83,7 +83,7 @@ export class GrowthPathEngine {
 
   /**
    * 分析技能差距 - 核心逻辑
-   * 只比对岗位要求的技能，不添加简历中不存在的技能
+   * 支持模糊匹配：js→JavaScript, ts→TypeScript, 中文别名等
    */
   private analyzeSkillGaps(): SkillGap[] {
     const gaps: SkillGap[] = [];
@@ -91,8 +91,84 @@ export class GrowthPathEngine {
       this.userProfile.skills.map(s => [s.name.toLowerCase(), s])
     );
 
+    // 别名映射：用户可能使用的缩写/别名 → 标准技能名
+    const aliases: Record<string, string[]> = {
+      'javascript': ['js', 'javascript', 'es6', 'es2015', 'ecmascript'],
+      'typescript': ['ts', 'typescript'],
+      'react': ['react', 'reactjs', 'react.js', 'react hooks'],
+      'vue': ['vue', 'vuejs', 'vue.js', 'vue3'],
+      'node.js': ['node', 'nodejs', 'node.js'],
+      'python': ['python', 'py'],
+      'java': ['java', 'jdk', 'jvm'],
+      'css': ['css', 'css3', 'scss', 'sass', 'less', 'stylus'],
+      'html': ['html', 'html5'],
+      'go': ['go', 'golang'],
+      'sql': ['sql', 'mysql', 'postgresql', 'postgres', 'pg', 'mssql', 'sqlite'],
+      'mysql': ['mysql', 'mariadb'],
+      'redis': ['redis'],
+      'docker': ['docker', 'container', '容器'],
+      'kubernetes': ['k8s', 'kubernetes', 'k8'],
+      'git': ['git', 'github', 'gitlab'],
+      'webpack': ['webpack'],
+      'vite': ['vite'],
+      'next.js': ['next.js', 'nextjs', 'next'],
+      'spring boot': ['springboot', 'spring boot', 'spring'],
+      '分布式系统': ['分布式', '分布式系统', '微服务架构', '分布式架构'],
+      '微服务': ['微服务', 'microservice', 'microservices'],
+      '性能优化': ['性能优化', '性能', '前端性能', 'web性能'],
+      '机器学习': ['机器学习', 'ml', 'machine learning'],
+      '深度学习': ['深度学习', 'dl', 'deep learning'],
+      'pytorch/tensorflow': ['pytorch', 'tensorflow', 'tf', '深度学习框架'],
+      'nlp/cv': ['nlp', 'cv', '自然语言处理', '计算机视觉'],
+      '大模型': ['大模型', 'llm', 'chatgpt', 'gpt', 'langchain', 'rag'],
+      'figma': ['figma', 'sketch', 'xd'],
+      '数据分析': ['数据分析', 'data analysis', '统计学'],
+      '数据可视化': ['数据可视化', 'echarts', 'd3', 'tableau', 'power bi', 'matplotlib'],
+      '原型设计': ['原型设计', 'axure', 'axure/figma', '原型'],
+      '需求分析': ['需求分析', 'prd', '需求'],
+      '项目管理': ['项目管理', 'project management', 'scrum', 'agile', '敏捷'],
+      '内容策划': ['内容策划', '内容运营', '文案'],
+      '用户增长': ['用户增长', '增长黑客', 'growth'],
+      '文案写作': ['文案', '文案写作', 'copywriting'],
+      '单元测试': ['单元测试', 'jest', 'vitest', 'testing'],
+      '系统架构': ['系统架构', '架构设计', 'architecture', 'system design'],
+    };
+
     for (const req of this.jobBenchmark.requiredSkills) {
-      const userSkill = userSkillsMap.get(req.name.toLowerCase());
+      // 精确匹配
+      let userSkill = userSkillsMap.get(req.name.toLowerCase());
+
+      // 模糊匹配：检查用户技能是否是岗位要求技能的别名
+      if (!userSkill) {
+        const standardName = req.name.toLowerCase();
+        const aliasList = aliases[standardName] || [standardName];
+        for (const alias of aliasList) {
+          userSkill = userSkillsMap.get(alias.toLowerCase());
+          if (userSkill) break;
+        }
+      }
+
+      // 反向模糊匹配：检查岗位要求是否是用户技能的某个别名
+      if (!userSkill) {
+        for (const [userKey, userVal] of userSkillsMap) {
+          const userAliases = aliases[userKey] || [userKey];
+          if (userAliases.some(a => a.toLowerCase() === req.name.toLowerCase())) {
+            userSkill = userVal;
+            break;
+          }
+        }
+      }
+
+      // 子串包含匹配（兜底）
+      if (!userSkill) {
+        for (const [userKey, userVal] of userSkillsMap) {
+          if (req.name.toLowerCase().includes(userKey) || userKey.includes(req.name.toLowerCase())) {
+            userSkill = userVal;
+            break;
+          }
+        }
+      }
+
       const currentLevel = userSkill ? userSkill.level : 0;
       const requiredLevel = req.minLevel;
       const gapScore = Math.max(requiredLevel - currentLevel, 0);

@@ -57,59 +57,39 @@ function parseSkillsFromText(text: string): Array<{ name: string; level: number;
 // 获取岗位基准数据
 // ============================================
 
-async function fetchJobBenchmark(jobId: string, jobTitle: string): Promise<JobBenchmark> {
+async function fetchJobBenchmark(jobId: string, jobTitle: string): Promise<JobBenchmark | null> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    // 先尝试按 id 精确匹配（直接读取内存数据），再按 title 模糊搜索
+    // 先尝试按 id 精确匹配
     const res = await fetch(`${baseUrl}/api/job-benchmarks?id=${encodeURIComponent(jobId)}`, {
       headers: { 'Content-Type': 'application/json' },
     });
     if (res.ok) {
       const data = await res.json();
       if (data.success && data.data && data.data.length > 0) {
+        console.log(`[成长路径生成] 按 id 匹配到岗位: ${data.data[0].jobTitle}`);
         return data.data[0];
       }
     }
 
-    // 按 title 搜索
+    // 按 title 模糊搜索
     const res2 = await fetch(`${baseUrl}/api/job-benchmarks?title=${encodeURIComponent(jobTitle)}`, {
       headers: { 'Content-Type': 'application/json' },
     });
     if (res2.ok) {
       const data2 = await res2.json();
       if (data2.success && data2.data && data2.data.length > 0) {
+        console.log(`[成长路径生成] 按 title 匹配到岗位: ${data2.data[0].jobTitle}`);
         return data2.data[0];
       }
     }
-  } catch (e) {
-    console.warn('[成长路径生成] 获取岗位基准失败，使用默认值:', e);
-  }
 
-  // 默认岗位基准（fallback）
-  return {
-    id: jobId,
-    jobTitle: jobTitle,
-    companyLevel: '大厂',
-    department: '技术',
-    requiredSkills: [
-      { name: 'JavaScript', minLevel: 80, weight: 0.25, isRequired: true },
-      { name: 'TypeScript', minLevel: 75, weight: 0.20, isRequired: true },
-      { name: 'React', minLevel: 75, weight: 0.20, isRequired: true },
-      { name: 'CSS', minLevel: 80, weight: 0.15, isRequired: true },
-      { name: '性能优化', minLevel: 70, weight: 0.10, isRequired: false },
-    ],
-    softSkills: [
-      { name: '沟通协作', minLevel: 70, weight: 0.3 },
-      { name: '学习能力', minLevel: 75, weight: 0.3 },
-    ],
-    dimensionRequirements: { professional: 75, communication: 65, leadership: 55, innovation: 70, resilience: 65 },
-    educationRequirement: { minDegree: 'bachelor', preferredMajors: [] },
-    experienceRequirement: { minYears: 1, preferredCompanies: [] },
-    salaryRange: { min: 15000, max: 35000, currency: 'CNY' },
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    isActive: true,
-  };
+    console.warn(`[成长路径生成] 未找到岗位基准: jobId=${jobId}, jobTitle=${jobTitle}`);
+    return null;
+  } catch (e) {
+    console.error('[成长路径生成] 获取岗位基准异常:', e);
+    return null;
+  }
 }
 
 // ============================================
@@ -177,7 +157,11 @@ function buildGapAnalysis(
 ): string[] {
   return skillGaps
     .filter(g => g.gapScore > 0)
-    .map(g => `${g.skillName}（当前${g.currentLevel}分，要求${g.requiredLevel}分，差距${g.gapScore}分，${targetJob.jobTitle}岗位${g.isRequired ? '硬性要求' : '建议掌握'}）`);
+    .map(g => {
+      const req = targetJob.requiredSkills.find(s => s.name === g.skillName);
+      const tag = req?.isRequired ? '必需' : '建议';
+      return `${g.skillName} 当前${g.currentLevel}分，要求${g.requiredLevel}分，差距${g.gapScore}分（${tag}）`;
+    });
 }
 
 // ============================================
@@ -319,65 +303,66 @@ function buildFinalOutput(
   output += `${userProfileSummary}\n\n`;
 
   if (hasMinimalInput) {
-    output += `> ⚠️ 你目前只选择了目标岗位，尚未填写任何技能标签。建议你补充技能标签以获得更精准的个性化分析。\n\n`;
+    output += `> 你目前只选择了目标岗位，尚未填写任何技能标签，建议补充技能以获得更精准的分析。\n\n`;
   }
 
   if (userOwnedConditions.length > 0) {
-    output += `**已具备的条件：**${userOwnedConditions.map(c => `\n- ${c}`).join('')}\n\n`;
+    output += `## 已具备条件\n\n`;
+    userOwnedConditions.forEach(c => { output += `- ${c}\n`; });
+    output += '\n';
   }
 
   if (gapAnalysis.length > 0) {
-    output += `**需要补齐的差距：**${gapAnalysis.map(g => `\n- ${g}`).join('')}\n\n`;
+    output += `## 需要补齐的差距\n\n`;
+    gapAnalysis.forEach(g => { output += `- ${g}\n`; });
+    output += '\n';
   }
 
   output += `## 学习路径\n\n`;
 
   if (aiLearningPath && aiLearningPath.length > 0) {
-    // 使用 AI 生成的学习路径
     aiLearningPath.forEach(p => {
-      output += `### 阶段${p.phase}：${p.title}\n`;
+      output += `### ${p.title}\n`;
       p.tasks.forEach(t => { output += `- ${t}\n`; });
       output += '\n';
     });
   } else {
-    // 规则引擎兜底
     if (['大一', '大二'].includes(grade)) {
-      output += `### 阶段1：基础巩固\n`;
+      output += `### 基础巩固\n`;
       output += `- 系统学习${criticalGaps.length > 0 ? criticalGaps.slice(0, 3).map(g => g.skillName).join('和') : '核心编程语言'}的基础知识\n`;
       output += `- 完成至少1个课堂项目或课设\n`;
-      output += `### 阶段2：实践提升\n`;
+      output += `### 实践提升\n`;
       output += `- 参加学科竞赛或开源项目\n`;
-      output += `- 开始刷算法题（LeetCode 简单+中等）\n`;
+      output += `- 开始刷算法题\n`;
     } else if (['大三', '大四'].includes(grade)) {
-      output += `### 阶段1：技能冲刺\n`;
+      output += `### 技能冲刺\n`;
       output += `- 优先攻克${criticalGaps.length > 0 ? criticalGaps.slice(0, 2).map(g => g.skillName).join('和') : '目标岗位核心技能'}\n`;
       output += `- 准备面试八股文和算法\n`;
-      output += `### 阶段2：求职准备\n`;
+      output += `### 求职准备\n`;
       output += `- 优化简历，突出已有项目经历\n`;
-      output += `- 投递实习/校招岗位\n`;
+      output += `- 投递实习或校招岗位\n`;
     } else if (grade.includes('硕士')) {
-      output += `### 阶段1：深度研究\n`;
+      output += `### 深度研究\n`;
       output += `- 结合研究方向练习${criticalGaps.length > 0 ? criticalGaps.slice(0, 2).map(g => g.skillName).join('和') : '工业界核心技术栈'}\n`;
       output += `- 参与实际项目提升工程能力\n`;
-      output += `### 阶段2：就业准备\n`;
+      output += `### 就业准备\n`;
       output += `- 关注工业界最新技术趋势\n`;
-      output += `- 建立技术影响力（博客/开源）\n`;
+      output += `- 建立技术影响力\n`;
     } else if (grade.includes('博士')) {
-      output += `### 阶段1：学术与工程结合\n`;
+      output += `### 学术与工程结合\n`;
       output += `- 将研究成果转化为工程实践能力\n`;
       output += `- 培养技术视野和团队协作经验\n`;
-      output += `### 阶段2：求职冲刺\n`;
+      output += `### 求职冲刺\n`;
       output += `- 展现技术深度和落地能力\n`;
       output += `- 投递对应方向的高级岗位\n`;
     } else {
-      output += `### 阶段1：基础学习\n`;
+      output += `### 基础学习\n`;
       output += `- 学习目标岗位核心技能\n`;
       output += `- 积累项目经验\n`;
     }
     output += '\n';
   }
 
-  output += `系统已为你生成了一份学习路径，请参考下方的时间轴逐步推进。`;
   return output;
 }
 
@@ -432,6 +417,13 @@ export const POST = withAuth(async (request: NextRequest, context: any, user: an
 
       // 1. 获取岗位基准数据
       targetJob = await fetchJobBenchmark(targetJobId, targetJobTitle);
+
+      if (!targetJob) {
+        return NextResponse.json(
+          { success: false, error: `未找到目标岗位「${targetJobTitle}」的能力模型数据。请尝试重新选择岗位，或选择其他方向。` },
+          { status: 404 }
+        );
+      }
 
       // 2. 根据年级+技能文本构建用户画像
       const gradeInfo = gradeToProfile(grade);
