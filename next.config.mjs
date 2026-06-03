@@ -12,6 +12,13 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+
+  // 固定构建 ID，避免每次构建生成不同 ID 导致缓存失效
+  generateBuildId: () => "tencent-career-static-build",
+
+  // 禁用 Next.js 构建缓存（EdgeOne 静态托管无需增量构建缓存）
+  // 避免 "No build cache found" 警告
+  cacheHandler: undefined,
 };
 
 export default nextConfig;

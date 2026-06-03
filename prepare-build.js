@@ -1,16 +1,17 @@
 /**
  * EdgeOne 静态导出构建预处理脚本
- * 
+ *
  * 解决的问题：
  * 1. Next.js output:"export" 不支持 API Routes
  * 2. Windows 下 Next.js [param] 动态路由与 output:"export" 不兼容
- * 
+ *
  * 构建命令: node prepare-build.js
  * 此脚本会自动执行: 移出不兼容文件 -> next build -> 恢复文件
  */
 
 const { execSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
 const tempDir = '.build-temp';
 
@@ -20,11 +21,45 @@ const tempMoves = [
   { src: 'src/app/mock-interview/report/[sessionId]', dst: `${tempDir}/mock-report-session` },
 ];
 
+/**
+ * 兼容 Node 18 的递归复制函数
+ * 使用同步原生 fs API，避免依赖 fsext 扩展
+ */
+function copyDirSync(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirSync(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+/**
+ * 兼容 Node 18 的递归删除函数
+ */
+function removeDirSync(dir) {
+  if (!fs.existsSync(dir)) return;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      removeDirSync(fullPath);
+    } else {
+      fs.unlinkSync(fullPath);
+    }
+  }
+  fs.rmdirSync(dir);
+}
+
 function move(src, dst) {
   if (!fs.existsSync(src)) return;
-  fs.mkdirSync(dst, { recursive: true });
-  fs.cpSync(src, dst, { recursive: true });
-  fs.rmSync(src, { recursive: true, force: true });
+  copyDirSync(src, dst);
+  removeDirSync(src);
 }
 
 function restore() {
@@ -32,9 +67,9 @@ function restore() {
   for (const { src, dst } of tempMoves) {
     if (!fs.existsSync(dst)) continue;
     fs.mkdirSync(src, { recursive: true });
-    fs.cpSync(dst, src, { recursive: true });
+    copyDirSync(dst, src);
   }
-  if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+  removeDirSync(tempDir);
 }
 
 // Step 1: 移出不兼容文件

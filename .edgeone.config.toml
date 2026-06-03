@@ -14,14 +14,14 @@
   # 安装依赖命令
   install_command = "npm ci --prefer-offline"
 
-  # Node.js 版本（React 19 / Next.js 14+ 需要 Node 18+）
-  node_version = "18"
+  # Node.js 版本（React 19 / Next.js 16 需要 Node 20+）
+  node_version = "20"
 
 # ============================
 # 构建缓存策略
 # ============================
-# 将以下目录添加到构建缓存中，避免每次部署都从头安装和编译
-# 这能显著减少构建时间（从数分钟降至数十秒）
+# 仅缓存 node_modules，避免缓存与构建配置冲突
+# next.config.mjs 已配置固定 generateBuildId，无需缓存 .next/cache
 
 [cache]
   # node_modules：npm 依赖包缓存
@@ -29,12 +29,6 @@
   [[cache.paths]]
     path = "node_modules"
     key = "package-lock.json"
-
-  # .next/cache：Next.js 构建缓存
-  # 包含编译后的页面缓存和增量构建信息
-  [[cache.paths]]
-    path = ".next/cache"
-    key = "src/**, next.config.mjs, tsconfig.json"
 
 # ============================
 # 环境变量（按需配置）
