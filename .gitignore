@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# build artifacts (generated temporarily by prepare-build.js)
+/.build-temp/
+
 # production
 /build
 

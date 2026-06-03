@@ -5,8 +5,8 @@
 # 构建配置
 # ============================
 [build]
-  # 构建命令：先清理 .next 缓存目录，再执行 Next.js 静态导出构建
-  command = "npm run build"
+  # 构建命令：预处理脚本内部包含 next build（临时移出不兼容文件、构建、恢复）
+  command = "node prepare-build.js"
 
   # 构建输出目录（Next.js 静态导出默认输出到 out/）
   output_directory = "out"
@@ -14,7 +14,7 @@
   # 安装依赖命令
   install_command = "npm ci --prefer-offline"
 
-  # Node.js 版本（与项目本地环境保持一致）
+  # Node.js 版本（React 19 / Next.js 14+ 需要 Node 18+）
   node_version = "18"
 
 # ============================
@@ -34,7 +34,7 @@
   # 包含编译后的页面缓存和增量构建信息
   [[cache.paths]]
     path = ".next/cache"
-    key = "src/**, next.config.ts, tsconfig.json"
+    key = "src/**, next.config.mjs, tsconfig.json"
 
 # ============================
 # 环境变量（按需配置）

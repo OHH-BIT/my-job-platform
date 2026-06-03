@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "rimraf .next",
-    "build": "next build",
+    "build": "node prepare-build.js",
     "start": "next start",
     "lint": "eslint"
   },
