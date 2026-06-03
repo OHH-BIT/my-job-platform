@@ -12,7 +12,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -21,8 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 // ============================================
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
+  const { login } = useAuth();
   
   // 状态管理
   const [loading, setLoading] = useState(false);
@@ -46,15 +44,7 @@ export default function LoginPage() {
   // ============================================
 
   useEffect(() => {
-    // 已登录用户直接跳走
-    if (isAuthenticated) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const redirect = urlParams.get('redirect') || '/';
-      router.replace(redirect);
-      return;
-    }
-
-    // 检查URL参数中是否有error
+    // 首次加载时检查 URL 错误参数
     const urlParams = new URLSearchParams(window.location.search);
     const urlError = urlParams.get('error');
     if (urlError) {
@@ -63,7 +53,7 @@ export default function LoginPage() {
 
     // 检查本地是否有历史数据
     checkLocalData();
-  }, [isAuthenticated, router]);
+  }, []);
 
   // 倒计时效果
   useEffect(() => {
@@ -203,13 +193,13 @@ export default function LoginPage() {
         if (localData) {
           setShowMergePrompt(true);
         } else {
-          // 跳转到来源页面或首页
+          // 使用 window.location.href 跳转（硬跳转，确保完全刷新页面状态）
           setSuccess('登录成功！正在跳转...');
           const urlParams = new URLSearchParams(window.location.search);
           const redirect = urlParams.get('redirect') || '/';
           setTimeout(() => {
-            router.push(redirect);
-          }, 800);
+            window.location.href = redirect;
+          }, 500);
         }
       } else {
         setError(result.error || '登录失败，请重试');
@@ -261,8 +251,8 @@ export default function LoginPage() {
     setTimeout(() => {
       const urlParams = new URLSearchParams(window.location.search);
       const redirect = urlParams.get('redirect') || '/';
-      router.push(redirect);
-    }, 1500);
+      window.location.href = redirect;
+    }, 1000);
   };
 
   // ============================================
